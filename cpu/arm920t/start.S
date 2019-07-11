@@ -145,10 +145,10 @@ reset:
 	str	r1, [r0]
 # endif
 
-	/* FCLK:HCLK:PCLK = 1:2:4 */
-	/* default FCLK is 120 MHz ! */
+	/* FCLK:HCLK:PCLK = 1:4:8 */
+	/* default FCLK is 400MHz MHz ! */
 	ldr	r0, =CLKDIVN
-	mov	r1, #3
+	mov	r1, #5
 	str	r1, [r0]
 #endif	/* CONFIG_S3C2400 || CONFIG_S3C2410 */
 

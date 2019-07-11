@@ -126,6 +126,7 @@ typedef struct {
 	S3C24X0_REG32	CLKCON;
 	S3C24X0_REG32	CLKSLOW;
 	S3C24X0_REG32	CLKDIVN;
+	S3C24X0_REG32   CAMDIVN;    /* for s3c2440, by huzghost@126.com */
 } /*__attribute__((__packed__))*/ S3C24X0_CLOCK_POWER;
 
 
@@ -164,6 +165,25 @@ typedef struct {
 	S3C24X0_REG32	NFECC;
 } /*__attribute__((__packed__))*/ S3C2410_NAND;
 
+/* NAND FLASH (see S3C2440 manual chapter 6, huzghost@126.com) */
+typedef struct {
+    S3C24X0_REG32   NFCONF;
+    S3C24X0_REG32   NFCONT;
+    S3C24X0_REG32   NFCMD;
+    S3C24X0_REG32   NFADDR;
+    S3C24X0_REG32   NFDATA;
+    S3C24X0_REG32   NFMECCD0;
+    S3C24X0_REG32   NFMECCD1;
+    S3C24X0_REG32   NFSECCD;
+    S3C24X0_REG32   NFSTAT;
+    S3C24X0_REG32   NFESTAT0;
+    S3C24X0_REG32   NFESTAT1;
+    S3C24X0_REG32   NFMECC0;
+    S3C24X0_REG32   NFMECC1;
+    S3C24X0_REG32   NFSECC;
+    S3C24X0_REG32   NFSBLK;
+    S3C24X0_REG32   NFEBLK;
+} /*__attribute__((__packed__))*/ S3C2440_NAND;
 
 /* UART (see manual chapter 11) */
 typedef struct {
@@ -450,6 +470,14 @@ typedef struct {
 	S3C24X0_REG32	GSTATUS2;
 	S3C24X0_REG32	GSTATUS3;
 	S3C24X0_REG32	GSTATUS4;
+
+	/* s3c2440 */
+    S3C24X0_REG32   res9[3];
+	S3C24X0_REG32	MSLCON;
+    S3C24X0_REG32   GPJCON;
+    S3C24X0_REG32   GPJDAT;
+    S3C24X0_REG32   GPJUP;
+	
 #endif
 } /*__attribute__((__packed__))*/ S3C24X0_GPIO;
 
