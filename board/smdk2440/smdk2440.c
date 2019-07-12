@@ -133,7 +133,9 @@ int board_init (void)
 
 int dram_init (void)
 {
+	// sdram的起始地址
 	gd->bd->bi_dram[0].start = PHYS_SDRAM_1;
+	// sdram的大小
 	gd->bd->bi_dram[0].size = PHYS_SDRAM_1_SIZE;
 
 	return 0;

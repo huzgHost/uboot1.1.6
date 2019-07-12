@@ -149,15 +149,18 @@
 #define PHYS_FLASH_1		0x00000000 /* Flash Bank #1 */				//BANK0 接NorFlash
 
 #define CFG_FLASH_BASE		PHYS_FLASH_1
+#define CFG_MONITOR_BASE	PHYS_FLASH_1								// cfi-mode		huzghost@126.com
 
 /*-----------------------------------------------------------------------
  * FLASH and environment organization
  */
 
-#define CONFIG_AMD_LV400	1	/* uncomment this if you have a LV400 flash */
 #if 0
+#define CONFIG_AMD_LV400	1	/* uncomment this if you have a LV400 flash */
+
 #define CONFIG_AMD_LV800	1	/* uncomment this if you have a LV800 flash */
 #endif
+#define CONFIG_MX_LV160		1	// JZ2440上接入为MX_LV160 huzghost@126.com
 
 #define CFG_MAX_FLASH_BANKS	1	/* max number of memory banks */
 #ifdef CONFIG_AMD_LV800
@@ -170,6 +173,18 @@
 #define CFG_MAX_FLASH_SECT	(11)	/* max number of sectors on one chip */
 #define CFG_ENV_ADDR		(CFG_FLASH_BASE + 0x070000) /* addr of environment */
 #endif
+#ifdef CONFIG_MX_LV160
+// norflash的大小
+#define PHYS_FLASH_SIZE		0x00200000 /* 2MKB */
+// norflash的段个数
+#define CFG_MAX_FLASH_SECT	(35)	/* max number of sectors on one chip */
+// norflash存储环境变量的地址
+#define CFG_ENV_ADDR		(CFG_FLASH_BASE + 0x070000) /* addr of environment */
+#endif
+
+#define CFG_FLASH_CFI				1
+#define CFG_FLASH_CFI_DRIVER 		1				//nor-flash 支持 cfi模式
+
 
 /* timeout values are in ticks */
 #define CFG_FLASH_ERASE_TOUT	(5*CFG_HZ) /* Timeout for Flash Erase */

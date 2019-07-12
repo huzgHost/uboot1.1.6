@@ -228,8 +228,8 @@ init_fnc_t *init_sequence[] = {
 #if defined(CONFIG_DISPLAY_BOARDINFO)
 	checkboard,		/* display board info */
 #endif
-	dram_init,		/* configure available RAM banks */
-	display_dram_config,
+	dram_init,		/* configure available RAM banks */				// 设置了 sdram的起始地址，大小
+	display_dram_config,											// 打印SDRAM的大小
 	NULL,
 };
 
@@ -263,7 +263,7 @@ void start_armboot (void)
 
 #ifndef CFG_NO_FLASH
 	/* configure available FLASH banks */
-	size = flash_init ();
+	size = flash_init ();									// 初始化norflash(配置支持cfi模式，则调用 drivers/cfi_flash.c)
 	display_flash_config (size);
 #endif /* CFG_NO_FLASH */
 
