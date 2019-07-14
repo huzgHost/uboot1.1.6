@@ -1160,4 +1160,7 @@ typedef struct {
 
 #endif
 
+//#define rGSTATUS1       (*(volatile unsigned *)0x560000B0)
+//#define isS3C2410 		((rGSTATUS1 & 0xffff0000) == 0x32410000)
+
 #endif /*__S3C24X0_H__*/

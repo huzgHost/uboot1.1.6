@@ -59,5 +59,19 @@ checksum bad
 checksum bad
 host 192.168.2.123 is alive
 
+============================= 第二次：增加nand命令，nandflash的支持  =============================
+U-Boot 1.1.6 huzg-uboot(Jul 14 2019 - 18:03:20)
+
+DRAM:  64 MB
+Flash:  2 MB
+NAND:  256 MiB
+*** Warning - bad CRC, using default environment
+
+In:    serial
+Out:   serial
+Err:   serial
+SMDK2440 # nand
+Usage:
+nand    - NAND sub-system
 
 
