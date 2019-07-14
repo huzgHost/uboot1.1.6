@@ -53,9 +53,21 @@
 /*
  * Hardware drivers
  */
+#if 0
 #define CONFIG_DRIVER_CS8900	1	/* we have a CS8900 on-board */
 #define CS8900_BASE		0x19000300
 #define CS8900_BUS16		1 /* the Linux driver does accesses as shorts */
+#endif
+
+#if !defined(CONFIG_DRIVER_CS8900)
+#define CONFIG_DRIVER_DM9000		1
+#define CONFIG_DM9000_USE_16BIT 	1
+//DM9000的基地址,接在 CS4上
+#define CONFIG_DM9000_BASE			0x20000000
+#define DM9000_IO					0x20000000
+//DM9000参考电路图， CMD接的ADDR2(cmd 为高，data为数据; cmd为低，data为地址)
+#define DM9000_DATA					0x20000004
+#endif
 
 /*
  * select serial console configuration
@@ -75,10 +87,12 @@
 /***********************************************************
  * Command definition
  ***********************************************************/
+//添加 ping, NAND 命令
 #define CONFIG_COMMANDS \
 			(CONFIG_CMD_DFL	 | \
 			CFG_CMD_CACHE	 | \
-			/*CFG_CMD_NAND	 |*/ \
+			CFG_CMD_PING	 | \
+			CFG_CMD_NAND	 | \
 			/*CFG_CMD_EEPROM |*/ \
 			/*CFG_CMD_I2C	 |*/ \
 			/*CFG_CMD_USB	 |*/ \
@@ -91,10 +105,10 @@
 
 #define CONFIG_BOOTDELAY	3
 /*#define CONFIG_BOOTARGS    	"root=ramfs devfs=mount console=ttySA0,9600" */
-/*#define CONFIG_ETHADDR	08:00:3e:26:0a:5b */
-#define CONFIG_NETMASK          255.255.255.0
-#define CONFIG_IPADDR		10.0.0.110
-#define CONFIG_SERVERIP		10.0.0.1
+#define CONFIG_ETHADDR		08:00:3e:26:0a:5b
+#define CONFIG_NETMASK      255.255.255.0
+#define CONFIG_IPADDR		192.168.2.110
+#define CONFIG_SERVERIP		192.168.2.100
 /*#define CONFIG_BOOTFILE	"elinos-lart" */
 /*#define CONFIG_BOOTCOMMAND	"tftp; bootm" */
 
