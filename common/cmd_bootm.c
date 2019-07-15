@@ -165,10 +165,11 @@ int do_bootm (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	s = getenv ("verify");
 	verify = (s && (*s == 'n')) ? 0 : 1;
 
+	//确定 addr的地址"bootm 0x30007FC0"
 	if (argc < 2) {
 		addr = load_addr;
 	} else {
-		addr = simple_strtoul(argv[1], NULL, 16);
+		addr = simple_strtoul(argv[1], NULL, 16);									//解析出 uImage文件head信息(uImage存放在 0x30007FC0)
 	}
 
 	SHOW_BOOT_PROGRESS (1);
@@ -180,7 +181,7 @@ int do_bootm (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 		read_dataflash(addr, sizeof(image_header_t), (char *)&header);
 	} else
 #endif
-	memmove (&header, (char *)addr, sizeof(image_header_t));
+	memmove (&header, (char *)addr, sizeof(image_header_t));						//从0x30007FC0地址拷贝信息到 headr中，(存放的是uImage头部信息)
 
 	if (ntohl(hdr->ih_magic) != IH_MAGIC) {
 #ifdef __I386__	/* correct image format not implemented yet - fake it */
@@ -201,7 +202,7 @@ int do_bootm (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	}
 	SHOW_BOOT_PROGRESS (2);
 
-	data = (ulong)&header;
+	data = (ulong)&header;															// data为header的前8byte数据(ih_magic, ih_hcrc)
 	len  = sizeof(image_header_t);
 
 	checksum = ntohl(hdr->ih_hcrc);
@@ -224,10 +225,10 @@ int do_bootm (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 
 
 	/* for multi-file images we need the data part, too */
-	print_image_hdr ((image_header_t *)addr);
+	print_image_hdr ((image_header_t *)addr);										//打印uImage的 头部信息
 
-	data = addr + sizeof(image_header_t);
-	len  = ntohl(hdr->ih_size);
+	data = addr + sizeof(image_header_t);											//uImage头部地址+头部文件大小 == (真正内核的地址)
+	len  = ntohl(hdr->ih_size);														//真正内核文件大小
 
 	if (verify) {
 		puts ("   Verifying Checksum ... ");
@@ -272,6 +273,7 @@ int do_bootm (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	}
 	SHOW_BOOT_PROGRESS (5);
 
+	//kernel文件的类型
 	switch (hdr->ih_type) {
 	case IH_TYPE_STANDALONE:
 		name = "Standalone Application";
@@ -315,12 +317,12 @@ int do_bootm (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	flush_data_cache();
 	dcache_disable();
 #endif
-
+	//从uImage"头部信息" 获取kernel压缩类型
 	switch (hdr->ih_comp) {
 	case IH_COMP_NONE:
-		if(ntohl(hdr->ih_load) == addr) {
+		if(ntohl(hdr->ih_load) == addr) {									//内核加载地址 等于 内核入口地址
 			printf ("   XIP %s ... ", name);
-		} else {
+		} else {															//否则就需要拷贝移动
 #if defined(CONFIG_HW_WATCHDOG) || defined(CONFIG_WATCHDOG)
 			size_t l = len;
 			void *to = (void *)ntohl(hdr->ih_load);
@@ -341,7 +343,7 @@ int do_bootm (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 #endif	/* CONFIG_HW_WATCHDOG || CONFIG_WATCHDOG */
 		}
 		break;
-	case IH_COMP_GZIP:
+	case IH_COMP_GZIP:														//内核文件被压缩成 gzip文件
 		printf ("   Uncompressing %s ... ", name);
 		if (gunzip ((void *)ntohl(hdr->ih_load), unc_len,
 			    (uchar *)data, &len) != 0) {
@@ -351,7 +353,7 @@ int do_bootm (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 		}
 		break;
 #ifdef CONFIG_BZIP2
-	case IH_COMP_BZIP2:
+	case IH_COMP_BZIP2:														//内核文件被压缩成 bzip2 文件
 		printf ("   Uncompressing %s ... ", name);
 		/*
 		 * If we've got less than 4 MB of malloc() space,
@@ -416,7 +418,7 @@ int do_bootm (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	    fixup_silent_linux();
 #endif
 	    do_bootm_linux  (cmdtp, flag, argc, argv,
-			     addr, len_ptr, verify);
+			     addr, len_ptr, verify);									//这里 启动 linux
 	    break;
 	case IH_OS_NETBSD:
 	    do_bootm_netbsd (cmdtp, flag, argc, argv,
@@ -461,6 +463,9 @@ int do_bootm (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	return 1;
 }
 
+//自定义bootm命令，uboot中的环境变量:bootcmd=nand read.jffs2 0x30007FC0 kernel;bootm 0x30007FC0
+//bootm 0x30007FC0
+//名称:bootm;参数大小:CFG_MAXARGS;是否可重启:1; 命令函数:do_bootm;短帮助提示:"bootm ...";长帮助提示:[addr [ars ...]]...
 U_BOOT_CMD(
  	bootm,	CFG_MAXARGS,	1,	do_bootm,
  	"bootm   - boot application image from memory\n",

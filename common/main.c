@@ -383,7 +383,7 @@ void main_loop (void)
 #endif /* CONFIG_PREBOOT */
 
 #if defined(CONFIG_BOOTDELAY) && (CONFIG_BOOTDELAY >= 0)
-	s = getenv ("bootdelay");
+	s = getenv ("bootdelay");													//获取环境变量bootdelay(bootdelay=3, include/configs/smdk2410.h)
 	bootdelay = s ? (int)simple_strtol(s, NULL, 10) : CONFIG_BOOTDELAY;
 
 	debug ("### main_loop entered: bootdelay=%d\n\n", bootdelay);
@@ -400,17 +400,19 @@ void main_loop (void)
 	}
 	else
 #endif /* CONFIG_BOOTCOUNT_LIMIT */
-		s = getenv ("bootcmd");
-
+		s = getenv ("bootcmd");													//获取环境变量bootcmd,该命令用于启动内核
+																				//bootcmd=nand read.jffs2 0x30007FC0 kernel;bootm 0x30007FC0
+																				//从kernel分区将 read.jffs2 读到地址 0x30007FC0
 	debug ("### main_loop: bootcmd=\"%s\"\n", s ? s : "<UNDEFINED>");
 
-	if (bootdelay >= 0 && s && !abortboot (bootdelay)) {
+	if (bootdelay >= 0 && s && !abortboot (bootdelay)) {						//uboot倒数计时
 # ifdef CONFIG_AUTOBOOT_KEYED
 		int prev = disable_ctrlc(1);	/* disable Control C checking */
 # endif
 
 # ifndef CFG_HUSH_PARSER
-		run_command (s, 0);
+		printf("Booting Linux ...\n");
+		run_command (s, 0);														//启动Linux内核 s = "nand read.jffs2 0x30007FC0 kernel;bootm 0x30007FC0"
 # else
 		parse_string_outer(s, FLAG_PARSE_SEMICOLON |
 				    FLAG_EXIT_FROM_LOOP);
@@ -460,7 +462,7 @@ void main_loop (void)
 			reset_cmd_timeout();
 		}
 #endif
-		len = readline (CFG_PROMPT);
+		len = readline (CFG_PROMPT);											//读取串口数据
 
 		flag = 0;	/* assume no special flags for now */
 		if (len > 0)
@@ -484,7 +486,7 @@ void main_loop (void)
 		if (len == -1)
 			puts ("<INTERRUPT>\n");
 		else
-			rc = run_command (lastcommand, flag);
+			rc = run_command (lastcommand, flag);								//根据串口输入，运行对应的命令
 
 		if (rc <= 0) {
 			/* invalid command or not repeatable, forget it */
@@ -1078,11 +1080,11 @@ int parse_line (char *line, char *argv[])
 	while (nargs < CFG_MAXARGS) {
 
 		/* skip any white space */
-		while ((*line == ' ') || (*line == '\t')) {
+		while ((*line == ' ') || (*line == '\t')) {								//忽略空格，tab键
 			++line;
 		}
 
-		if (*line == '\0') {	/* end of line, no more args	*/
+		if (*line == '\0') {	/* end of line, no more args	*/				//碰到字符串结束符，返回结束
 			argv[nargs] = NULL;
 #ifdef DEBUG_PARSER
 		printf ("parse_line: nargs=%d\n", nargs);
@@ -1284,6 +1286,7 @@ int run_command (const char *cmd, int flag)
 #endif
 	while (*str) {
 
+		// str =  "nand read.jffs2 0x30007FC0 kernel;bootm 0x30007FC0"
 		/*
 		 * Find separator, or string end
 		 * Allow simple escape of ';' by writing "\;"
@@ -1318,13 +1321,13 @@ int run_command (const char *cmd, int flag)
 		process_macros (token, finaltoken);
 
 		/* Extract arguments */
-		if ((argc = parse_line (finaltoken, argv)) == 0) {
+		if ((argc = parse_line (finaltoken, argv)) == 0) {							//解析以";"为分隔每一个字符串，并将字符串解析出来
 			rc = -1;	/* no command at all */
 			continue;
 		}
 
 		/* Look up command in command table */
-		if ((cmdtp = find_cmd(argv[0])) == NULL) {
+		if ((cmdtp = find_cmd(argv[0])) == NULL) {									//解析出的字符串，第一个为命令，去查找相应的命令，得到"命令结构体cmdtp"
 			printf ("Unknown command '%s' - try 'help'\n", argv[0]);
 			rc = -1;	/* give up after bad command */
 			continue;
@@ -1339,7 +1342,7 @@ int run_command (const char *cmd, int flag)
 
 #if (CONFIG_COMMANDS & CFG_CMD_BOOTD)
 		/* avoid "bootd" recursion */
-		if (cmdtp->cmd == do_bootd) {
+		if (cmdtp->cmd == do_bootd) {												//判断 命令结构体的  命令
 #ifdef DEBUG_PARSER
 			printf ("[%s]\n", finaltoken);
 #endif
@@ -1354,7 +1357,7 @@ int run_command (const char *cmd, int flag)
 #endif	/* CFG_CMD_BOOTD */
 
 		/* OK - call function to do the command */
-		if ((cmdtp->cmd) (cmdtp, flag, argc, argv) != 0) {
+		if ((cmdtp->cmd) (cmdtp, flag, argc, argv) != 0) {							//调用命令，对于内核有2个命令(nand 加载内核， nand启动内核)
 			rc = -1;
 		}
 

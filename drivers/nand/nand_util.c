@@ -298,6 +298,7 @@ int nand_write_opts(nand_info_t *meminfo, const nand_write_options_t *opts)
 	u_char *buffer = opts->buffer;
 	size_t written;
 	int result;
+	int skipfirstblk = opts->skipfirstblk;
 
 	if (opts->pad && opts->writeoob) {
 		printf("Can't pad when oob data is present.\n");
@@ -354,6 +355,7 @@ int nand_write_opts(nand_info_t *meminfo, const nand_write_options_t *opts)
 		}
 
 		memcpy(&meminfo->oobinfo, oobsel, sizeof(meminfo->oobinfo));
+		oobinfochanged = 1;   /* add by huzghost@126.com */
 	}
 
 	/* get image length */
@@ -400,31 +402,40 @@ int nand_write_opts(nand_info_t *meminfo, const nand_write_options_t *opts)
 
 			/* check all the blocks in an erase block for
 			 * bad blocks */
-			do {
-				int ret = meminfo->block_isbad(meminfo, offs);
+			if (!opts->nocheckbadblk) {
+				do {
+					int ret = meminfo->block_isbad(meminfo, offs);
 
-				if (ret < 0) {
-					printf("Bad block check failed\n");
-					goto restoreoob;
-				}
-				if (ret == 1) {
-					baderaseblock = 1;
-					if (!opts->quiet)
-						printf("\rBad block at 0x%lx "
-						       "in erase block from "
-						       "0x%x will be skipped\n",
-						       (long) offs,
-						       blockstart);
-				}
+					if (ret < 0) {
+						printf("Bad block check failed\n");
+						goto restoreoob;
+					}
+					if (ret == 1) {
+						baderaseblock = 1;
+						if (!opts->quiet)
+							printf("\rBad block at 0x%lx "
+							       "in erase block from "
+							       "0x%x will be skipped\n",
+							       (long) offs,
+							       blockstart);
+					}
 
-				if (baderaseblock) {
-					mtdoffset = blockstart
-						+ erasesize_blockalign;
-				}
-				offs +=	 erasesize_blockalign
-					/ opts->blockalign;
-			} while (offs < blockstart + erasesize_blockalign);
+					if (baderaseblock) {
+						mtdoffset = blockstart
+							+ erasesize_blockalign;
+					}
+					offs +=	 erasesize_blockalign
+						/ opts->blockalign;
+				} while (offs < blockstart + erasesize_blockalign);
+			}
 		}
+
+		/* skip the first good block when wirte yaffs image, by huzghost@126.com */
+        if (skipfirstblk) {
+            mtdoffset += erasesize_blockalign;
+            skipfirstblk = 0;
+            continue;
+        }
 
 		readlen = meminfo->oobblock;
 		if (opts->pad && (imglen < readlen)) {
