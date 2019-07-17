@@ -147,7 +147,58 @@ Reading data from 0x27f800 -- 100% complete.
    Load Address: 30008000
    Entry Point:  30008000
 
+========================== 2019/07/xx 支持nandflash启动  ===========================
+1，支持nandflash启动
+	一，修改start.S
+		为了使能nandflash，需要配置clock等
+	二，添加nandflash的初始化，读，写操作。
+====================================================================================
+U-Boot 1.1.6 huzg-uboot(Jul 17 2019 - 19:26:56)
+
+DRAM:  64 MB
+## Unknown FLASH on Bank 0 - Size = 0x00000000 = 0 MB
+Flash:  0 kB
+NAND:  256 MiB
+*** Warning - bad CRC or NAND, using default environment
+
+In:    serial
+Out:   serial
+Err:   serial
+Hit any key to stop autoboot:  0
+ERROR: resetting DM9000 -> not responding
+dm9000 i/o: 0x20000000, id: 0x90000a46
+DM9000: running in 16 bit mode
+MAC: 08:00:3e:26:0a:5b
+could not establish link
+Unknown command 'menu' - try 'help'
+SMDK2440 # print
+bootargs=noinitrd root=/dev/mtdblock3 init=/linuxrc console=ttySAC0,115200
+bootcmd=nand read.jffs2 0x30007FC0 kernel; bootm 0x30007FC0
+bootdelay=3
+baudrate=115200
+ethaddr=08:00:3e:26:0a:5b
+ipaddr=192.168.2.110
+serverip=192.168.2.100
+netmask=255.255.255.0
+stdin=serial
+stdout=serial
+stderr=serial
+mtdids=nand0=nandflash0
+mtdparts=mtdparts=nandflash0:256k@0(bootloader),128k(params),2m(kernel),-(root)
+partition=nand0,0
+mtddevnum=0
+mtddevname=bootloader
+
+Environment size: 452/131068 bytes
+
+
 
 ============================= 2019/07/xx 增加如下内容  =============================
-
+					烧录命令，烧录地址，烧录内容保存，加载，运行
+1，烧录支持
+	一，支持加载uboot
+	二，支持烧录kernel
+	三，支持烧录rootfs
+2，
+====================================================================================
 

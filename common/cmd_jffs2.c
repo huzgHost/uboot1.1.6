@@ -370,6 +370,7 @@ static int part_validate_nor(struct mtdids *id, struct part_info *part)
  */
 static int part_validate_nand(struct mtdids *id, struct part_info *part)
 {
+	//针对 nandflash分区，需要配置 CONFIG_JFFS2_NAND, CONFIG_COMMANDS, CFG_CMD_NAND
 #if defined(CONFIG_JFFS2_NAND) && (CONFIG_COMMANDS & CFG_CMD_NAND)
 	/* info for NAND chips */
 	nand_info_t *nand;

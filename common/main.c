@@ -40,9 +40,9 @@
 
 #include <post.h>
 
-#ifdef CONFIG_SILENT_CONSOLE
+//#ifdef CONFIG_SILENT_CONSOLE
 DECLARE_GLOBAL_DATA_PTR;
-#endif
+//#endif
 
 #if defined(CONFIG_BOOT_RETRY_TIME) && defined(CONFIG_RESET_TO_RETRY)
 extern int do_reset (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[]);		/* for do_reset() prototype */
@@ -233,7 +233,7 @@ static __inline__ int abortboot(int bootdelay)
 #ifdef CONFIG_MENUPROMPT
 	printf(CONFIG_MENUPROMPT, bootdelay);
 #else
-	printf("Hit any key to stop autoboot: %2d ", bootdelay);
+	printf("Hit any key to stop autoboot: %2d ", bootdelay);					// 配置 CONFIG_BOOTDELAY，在启动前延时
 #endif
 
 #if defined CONFIG_ZERO_BOOTDELAY_CHECK
@@ -363,6 +363,21 @@ void main_loop (void)
 	install_auto_complete();
 #endif
 
+// 将 nandflash 按 MTDPARTS_DEFAULT 设置的进行分区(uboot,param,kernel,rootfs)
+/***************************************************************************************/
+#ifdef CONFIG_JFFS2_CMDLINE
+    extern int mtdparts_init(void);
+    if (!getenv("mtdparts"))
+    {
+        run_command("mtdparts default", 0);
+    }
+    else
+    {
+        mtdparts_init();
+    }
+#endif
+/***************************************************************************************/
+
 #ifdef CONFIG_PREBOOT
 	if ((p = getenv ("preboot")) != NULL) {
 # ifdef CONFIG_AUTOBOOT_KEYED
@@ -383,7 +398,7 @@ void main_loop (void)
 #endif /* CONFIG_PREBOOT */
 
 #if defined(CONFIG_BOOTDELAY) && (CONFIG_BOOTDELAY >= 0)
-	s = getenv ("bootdelay");													//获取环境变量bootdelay(bootdelay=3, include/configs/smdk2410.h)
+	s = getenv ("bootdelay");
 	bootdelay = s ? (int)simple_strtol(s, NULL, 10) : CONFIG_BOOTDELAY;
 
 	debug ("### main_loop entered: bootdelay=%d\n\n", bootdelay);
@@ -400,19 +415,18 @@ void main_loop (void)
 	}
 	else
 #endif /* CONFIG_BOOTCOUNT_LIMIT */
-		s = getenv ("bootcmd");													//获取环境变量bootcmd,该命令用于启动内核
-																				//bootcmd=nand read.jffs2 0x30007FC0 kernel;bootm 0x30007FC0
-																				//从kernel分区将 read.jffs2 读到地址 0x30007FC0
+		s = getenv ("bootcmd");
+
 	debug ("### main_loop: bootcmd=\"%s\"\n", s ? s : "<UNDEFINED>");
 
-	if (bootdelay >= 0 && s && !abortboot (bootdelay)) {						//uboot倒数计时
+	// abortboot 做倒数计时
+	if (bootdelay >= 0 && s && !abortboot (bootdelay)) {
 # ifdef CONFIG_AUTOBOOT_KEYED
 		int prev = disable_ctrlc(1);	/* disable Control C checking */
 # endif
 
 # ifndef CFG_HUSH_PARSER
-		printf("Booting Linux ...\n");
-		run_command (s, 0);														//启动Linux内核 s = "nand read.jffs2 0x30007FC0 kernel;bootm 0x30007FC0"
+		run_command (s, 0);				// Cmd_bootm 启动kernel
 # else
 		parse_string_outer(s, FLAG_PARSE_SEMICOLON |
 				    FLAG_EXIT_FROM_LOOP);
@@ -444,7 +458,10 @@ void main_loop (void)
 	    video_banner();
 	}
 #endif
-
+/***************************************************************************************/
+	eth_init(gd->bd);						// 初始化 网络 DM9000
+    run_command("menu", 0);					// 运行 自定义 命令
+/***************************************************************************************/
 	/*
 	 * Main Loop for Monitor Command Processing
 	 */
@@ -462,7 +479,7 @@ void main_loop (void)
 			reset_cmd_timeout();
 		}
 #endif
-		len = readline (CFG_PROMPT);											//读取串口数据
+		len = readline (CFG_PROMPT);	// 读取 命令行 输入的内容
 
 		flag = 0;	/* assume no special flags for now */
 		if (len > 0)
@@ -486,7 +503,7 @@ void main_loop (void)
 		if (len == -1)
 			puts ("<INTERRUPT>\n");
 		else
-			rc = run_command (lastcommand, flag);								//根据串口输入，运行对应的命令
+			rc = run_command (lastcommand, flag);			// 运行 命令行 输入的命令
 
 		if (rc <= 0) {
 			/* invalid command or not repeatable, forget it */
@@ -1080,11 +1097,11 @@ int parse_line (char *line, char *argv[])
 	while (nargs < CFG_MAXARGS) {
 
 		/* skip any white space */
-		while ((*line == ' ') || (*line == '\t')) {								//忽略空格，tab键
+		while ((*line == ' ') || (*line == '\t')) {
 			++line;
 		}
 
-		if (*line == '\0') {	/* end of line, no more args	*/				//碰到字符串结束符，返回结束
+		if (*line == '\0') {	/* end of line, no more args	*/
 			argv[nargs] = NULL;
 #ifdef DEBUG_PARSER
 		printf ("parse_line: nargs=%d\n", nargs);
@@ -1286,7 +1303,6 @@ int run_command (const char *cmd, int flag)
 #endif
 	while (*str) {
 
-		// str =  "nand read.jffs2 0x30007FC0 kernel;bootm 0x30007FC0"
 		/*
 		 * Find separator, or string end
 		 * Allow simple escape of ';' by writing "\;"
@@ -1321,13 +1337,13 @@ int run_command (const char *cmd, int flag)
 		process_macros (token, finaltoken);
 
 		/* Extract arguments */
-		if ((argc = parse_line (finaltoken, argv)) == 0) {							//解析以";"为分隔每一个字符串，并将字符串解析出来
+		if ((argc = parse_line (finaltoken, argv)) == 0) {
 			rc = -1;	/* no command at all */
 			continue;
 		}
 
 		/* Look up command in command table */
-		if ((cmdtp = find_cmd(argv[0])) == NULL) {									//解析出的字符串，第一个为命令，去查找相应的命令，得到"命令结构体cmdtp"
+		if ((cmdtp = find_cmd(argv[0])) == NULL) {
 			printf ("Unknown command '%s' - try 'help'\n", argv[0]);
 			rc = -1;	/* give up after bad command */
 			continue;
@@ -1342,7 +1358,7 @@ int run_command (const char *cmd, int flag)
 
 #if (CONFIG_COMMANDS & CFG_CMD_BOOTD)
 		/* avoid "bootd" recursion */
-		if (cmdtp->cmd == do_bootd) {												//判断 命令结构体的  命令
+		if (cmdtp->cmd == do_bootd) {
 #ifdef DEBUG_PARSER
 			printf ("[%s]\n", finaltoken);
 #endif
@@ -1357,7 +1373,7 @@ int run_command (const char *cmd, int flag)
 #endif	/* CFG_CMD_BOOTD */
 
 		/* OK - call function to do the command */
-		if ((cmdtp->cmd) (cmdtp, flag, argc, argv) != 0) {							//调用命令，对于内核有2个命令(nand 加载内核， nand启动内核)
+		if ((cmdtp->cmd) (cmdtp, flag, argc, argv) != 0) {
 			rc = -1;
 		}
 

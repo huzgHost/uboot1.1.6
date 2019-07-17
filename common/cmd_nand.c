@@ -322,8 +322,8 @@ int do_nand(cmd_tbl_t * cmdtp, int flag, int argc, char *argv[])
 		addr = (ulong)simple_strtoul(argv[2], NULL, 16);
 
 		read = strncmp(cmd, "read", 4) == 0; /* 1 = read, 0 = write */
-		printf("\nNAND %s: ", read ? "read" : "write");
-		if (arg_off_size(argc - 3, argv + 3, nand, &off, &size) != 0)
+		printf("\nNAND %s: ", read ? "read" : "write");						// ¥Ú”° "NAND read: ... "
+		if (arg_off_size(argc - 3, argv + 3, nand, &off, &size) != 0)		// bootcmd=nand read.jffs2 0x30007FC0 kernel; bootm 0x30007FC0
 			return 1;
 
 		s = strchr(cmd, '.');

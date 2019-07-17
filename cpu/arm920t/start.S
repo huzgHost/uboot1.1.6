@@ -37,6 +37,13 @@
  *************************************************************************
  */
 
+#define LOCKTIME	0x4C000000	/* R/W, PLL lock time count register */
+#define MPLLCON		0x4C000004	/* R/W, MPLL configuration register */
+#define UPLLCON		0x4C000008	/* R/W, UPLL configuration register */
+#define CLKCON		0x4C00000C	/* R/W, Clock generator control reg. */
+#define CLKSLOW		0x4C000010	/* R/W, Slow clock control register */
+#define CLKDIVN		0x4C000014	/* R/W, Clock divider control */
+
 
 .globl _start
 _start:	b       reset
@@ -90,6 +97,18 @@ _bss_start:
 _bss_end:
 	.word _end
 
+.globl FREE_RAM_END
+FREE_RAM_END:
+	.word	0x0badc0de
+
+.globl FREE_RAM_SIZE
+FREE_RAM_SIZE:
+	.word	0x0badc0de
+
+.globl PreLoadedONRAM
+PreLoadedONRAM:
+	.word	0
+
 #ifdef CONFIG_USE_IRQ
 /* IRQ stack memory (calculated at run-time) */
 .globl IRQ_STACK_START
@@ -128,6 +147,7 @@ reset:
 # define CLKDIVN	0x4C000014	/* clock divisor register */
 #endif
 
+// s3c2440 使用 CONFIG_S3C2410的配置
 #if defined(CONFIG_S3C2400) || defined(CONFIG_S3C2410)
 	ldr     r0, =pWTCON
 	mov     r1, #0x0
@@ -145,11 +165,55 @@ reset:
 	str	r1, [r0]
 # endif
 
+/*************************************************************************************************************/
+//add by huzghost@126.com
+#define S3C2440_MPLL_400MHZ     ((0x5c<<12)|(0x01<<4)|(0x01))
+#define S3C2440_UPLL_48MHZ      ((0x38<<12)|(0x02<<4)|(0x02))
+#define S3C2440_CLKDIV          (0x05) // | (1<<3))    /* FCLK:HCLK:PCLK = 1:4:8, UCLK = UPLL/2 */
+/*************************************************************************************************************/
+
+
 	/* FCLK:HCLK:PCLK = 1:4:8 */
 	/* default FCLK is 400MHz MHz ! */
 	ldr	r0, =CLKDIVN
-	mov	r1, #5
+	mov	r1, #S3C2440_CLKDIV
 	str	r1, [r0]
+
+//add by huzghost@126.com
+/*************************************************************************************************************/
+	mrc p15, 0, r1, c1, c0, 0				// read ctrl register 
+	orr r1, r1, #0xc0000000 				// Asynchronous	
+	mcr p15, 0, r1, c1, c0, 0				// write ctrl register
+
+    ldr r0,=LOCKTIME
+    ldr r1,=0xffffff
+    str r1,[r0]
+
+	// delay
+    mov     r0, #0x200
+1:  subs    r0, r0, #1
+    bne     1b
+
+	// Configure MPLL
+    ldr r0,=MPLLCON          											//r0 = 0x4C000004
+    ldr r1,=S3C2440_MPLL_400MHZ
+    str r1,[r0]															//设置系统时钟为400MHz
+
+	// delay
+    mov     r0, #0x200
+1:  subs    r0, r0, #1
+    bne     1b
+
+	//Configure UPLL
+    ldr     r0, =UPLLCON          
+    ldr     r1, =S3C2440_UPLL_48MHZ
+    str     r1, [r0]													//设置USB串行总结48MHz
+
+	// delay
+    mov     r0, #0x200
+1:  subs    r0, r0, #1
+    bne     1b
+/*************************************************************************************************************/
 #endif	/* CONFIG_S3C2400 || CONFIG_S3C2410 */
 
 	/*
@@ -157,9 +221,17 @@ reset:
 	 * not when booting from ram!
 	 */
 #ifndef CONFIG_SKIP_LOWLEVEL_INIT
-	bl	cpu_init_crit
+#if 0
+	bl	cpu_init_crit										// 这里会初始化BANK0-BANK7, 需要使用到时钟，所以需要先设置时钟
+#else
+	adr	r0, _start		/* r0 <- current position of code   */
+	ldr	r1, _TEXT_BASE		/* test if we run from flash or RAM */
+	cmp     r0, r1                  /* don't reloc during debug         */
+	blne	cpu_init_crit													//r0 = 0x30000000, r1 = 0x33F80000, 主要目的为了配置SDRAM
+#endif
 #endif
 
+#if 0
 #ifndef CONFIG_SKIP_RELOCATE_UBOOT
 relocate:				/* relocate U-Boot to RAM	    */
 	adr	r0, _start		/* r0 <- current position of code   */
@@ -178,6 +250,7 @@ copy_loop:
 	cmp	r0, r2			/* until source end addreee [r2]    */
 	ble	copy_loop
 #endif	/* CONFIG_SKIP_RELOCATE_UBOOT */
+#endif
 
 	/* Set up the stack						    */
 stack_setup:
@@ -189,6 +262,29 @@ stack_setup:
 #endif
 	sub	sp, r0, #12		/* leave 3 words for abort-stack    */
 
+#ifndef CONFIG_SKIP_RELOCATE_UBOOT
+relocate:				/* relocate U-Boot to RAM	    */						//重定位代码
+	adr	r0, _start		/* r0 <- current position of code   */					//_start为代码开始位置0x30000000
+	ldr	r1, _TEXT_BASE		/* test if we run from flash or RAM */				//_TEXT_BASE 为 0x33F80000
+	cmp     r0, r1                  /* don't reloc during debug         */		//比较 两个值是否相等，不相等就需要进行代码拷贝
+	beq     clear_bss															//清除bss段
+	
+	ldr	r2, _armboot_start														//代码开始地址
+	ldr	r3, _bss_start															//bss段起始地址
+	sub	r2, r3, r2		/* r2 <- size of armboot            */					//需要拷贝的总长度
+#if 1
+	bl  CopyCode2Ram	/* r0: source, r1: dest, r2: size */					//从Nor/Nand Flash拷贝代码到SDRAM(0x33F80000)
+#else
+	add	r2, r0, r2		/* r2 <- source end address         */
+
+copy_loop:
+	ldmia	r0!, {r3-r10}		/* copy from source address [r0]    */
+	stmia	r1!, {r3-r10}		/* copy to   target address [r1]    */
+	cmp	r0, r2			/* until source end addreee [r2]    */
+	ble	copy_loop
+#endif	
+#endif
+
 clear_bss:
 	ldr	r0, _bss_start		/* find start of bss segment        */
 	ldr	r1, _bss_end		/* stop here                        */
@@ -198,6 +294,15 @@ clbss_l:str	r2, [r0]		/* clear loop...                    */
 	add	r0, r0, #4
 	cmp	r0, r1
 	ble	clbss_l
+
+SetLoadFlag:
+	/* Set a global flag, PreLoadedONRAM */
+	adr	r0, _start				/* r0 <- current position of code   */
+	ldr	r1, _TEXT_BASE			/* test if we run from flash or RAM */
+	cmp     r0, r1              /* don't reloc during debug         */
+	ldr r2, =PreLoadedONRAM
+	mov r3, #1
+	streq r3, [r2]
 
 #if 0
 	/* try doing this stuff after the relocation */

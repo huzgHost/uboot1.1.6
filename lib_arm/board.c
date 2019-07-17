@@ -70,7 +70,7 @@ extern void dataflash_print_info(void);
 #endif
 
 const char version_string[] =
-	U_BOOT_VERSION" (" __DATE__ " - " __TIME__ ")"CONFIG_IDENT_STRING;
+	U_BOOT_VERSION" huzg-uboot(" __DATE__ " - " __TIME__ ")"CONFIG_IDENT_STRING;
 
 #ifdef CONFIG_DRIVER_CS8900
 extern void cs8900_get_enetaddr (uchar * addr);
@@ -122,8 +122,7 @@ void *sbrk (ptrdiff_t increment)
 static int init_baudrate (void)
 {
 	char tmp[64];	/* long enough for environment variables */
-	int i = getenv_r ("baudrate", tmp, sizeof (tmp));					//查看 环境变量baudrate
-	// 将 string 转成 long
+	int i = getenv_r ("baudrate", tmp, sizeof (tmp));
 	gd->bd->bi_baudrate = gd->baudrate = (i > 0)
 			? (int) simple_strtoul (tmp, NULL, 10)
 			: CONFIG_BAUDRATE;
@@ -216,11 +215,11 @@ int print_cpuinfo (void); /* test-only */
 
 init_fnc_t *init_sequence[] = {
 	cpu_init,		/* basic cpu dependent setup */
-	board_init,		/* basic board dependent setup */						//CPU时钟，GPIO配置，global_data数据
-	interrupt_init,		/* set up exceptions */								//定时器4
-	env_init,		/* initialize environment */							//建议查看 common/env_flash.c(NorFlash)
-	init_baudrate,		/* initialze baudrate settings */					//得到波特率， global_data->dt->bi_baudrate
-	serial_init,		/* serial communications setup */					//
+	board_init,		/* basic board dependent setup */
+	interrupt_init,		/* set up exceptions */
+	env_init,		/* initialize environment */
+	init_baudrate,		/* initialze baudrate settings */
+	serial_init,		/* serial communications setup */
 	console_init_f,		/* stage 1 init of console */
 	display_banner,		/* say that we are here */
 #if defined(CONFIG_DISPLAY_CPUINFO)
@@ -229,8 +228,8 @@ init_fnc_t *init_sequence[] = {
 #if defined(CONFIG_DISPLAY_BOARDINFO)
 	checkboard,		/* display board info */
 #endif
-	dram_init,		/* configure available RAM banks */						//设置 内存大小(SDRAM)
-	display_dram_config,
+	dram_init,		/* configure available RAM banks */				// 设置了 sdram的起始地址，大小
+	display_dram_config,											// 打印SDRAM的大小
 	NULL,
 };
 
@@ -245,19 +244,18 @@ void start_armboot (void)
 	unsigned long addr;
 #endif
 
-	//_armboot_start = 0x33F80000, CFG_MALLOC_LEN = (64 + 128) * 1024, 
 	/* Pointer is writable since we allocated a register for it */
-	gd = (gd_t*)(_armboot_start - CFG_MALLOC_LEN - sizeof(gd_t));				//gd指向 SDRAM中 global_data分区起始地址
+	gd = (gd_t*)(_armboot_start - CFG_MALLOC_LEN - sizeof(gd_t));
 	/* compiler optimization barrier needed for GCC >= 3.4 */
 	__asm__ __volatile__("": : :"memory");
 
-	memset ((void*)gd, 0, sizeof (gd_t));										//分配 global_data空间,用于存放 gd信息
+	memset ((void*)gd, 0, sizeof (gd_t));
 	gd->bd = (bd_t*)((char*)gd - sizeof(bd_t));
-	memset (gd->bd, 0, sizeof (bd_t));											//为global_data中的bd分配空间,用于存入 bd信息
+	memset (gd->bd, 0, sizeof (bd_t));
 
-	monitor_flash_len = _bss_start - _armboot_start;							//.txt段到bss段的数据大小
+	monitor_flash_len = _bss_start - _armboot_start;
 
-	for (init_fnc_ptr = init_sequence; *init_fnc_ptr; ++init_fnc_ptr) {			//调用各个初始化函数
+	for (init_fnc_ptr = init_sequence; *init_fnc_ptr; ++init_fnc_ptr) {
 		if ((*init_fnc_ptr)() != 0) {
 			hang ();
 		}
@@ -265,7 +263,7 @@ void start_armboot (void)
 
 #ifndef CFG_NO_FLASH
 	/* configure available FLASH banks */
-	size = flash_init ();														//对nor flash进行初始化(board/smdk2410/Flash.c)
+	size = flash_init ();									// 初始化norflash(配置支持cfi模式，则调用 drivers/cfi_flash.c)
 	display_flash_config (size);
 #endif /* CFG_NO_FLASH */
 
@@ -296,11 +294,12 @@ void start_armboot (void)
 #endif /* CONFIG_LCD */
 
 	/* armboot_start is defined in the board-specific linker script */
-	mem_malloc_init (_armboot_start - CFG_MALLOC_LEN);							// 192K的空间，起始地址:0x33F50000
+	mem_malloc_init (_armboot_start - CFG_MALLOC_LEN);
 
+//需要在 smdk2440.h 打开支持 CFG_CMD_NAND
 #if (CONFIG_COMMANDS & CFG_CMD_NAND)
 	puts ("NAND:  ");
-	nand_init();		/* go init the NAND */									// nand flash初始化
+	nand_init();		/* go init the NAND */				// 初始化 nandflash
 #endif
 
 #ifdef CONFIG_HAS_DATAFLASH
@@ -309,7 +308,7 @@ void start_armboot (void)
 #endif
 
 	/* initialize environment */
-	env_relocate ();															//uboot下print输出的值,从flash获取环境变量值
+	env_relocate ();										//uboot环境变量 分配 
 
 #ifdef CONFIG_VFD
 	/* must do this after the framebuffer is allocated */
@@ -317,7 +316,7 @@ void start_armboot (void)
 #endif /* CONFIG_VFD */
 
 	/* IP Address */
-	gd->bd->bi_ip_addr = getenv_IPaddr ("ipaddr");								//获取ip地址
+	gd->bd->bi_ip_addr = getenv_IPaddr ("ipaddr");
 
 	/* MAC Address */
 	{
@@ -397,7 +396,7 @@ void start_armboot (void)
 #endif
 	/* main_loop() can return to retry autoboot, if so just run it again. */
 	for (;;) {
-		main_loop ();															//死循环，上面已经初始化flash,具有了flash的读写能力
+		main_loop ();						// 进入死循环， 处理 bootdelay,bootcmd等
 	}
 
 	/* NOTREACHED - no way out of command loop except booting */
