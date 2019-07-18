@@ -351,10 +351,11 @@ unsigned long flash_init (void)
 	char *s = getenv("unlock");
 #endif
 
+	printf("read nor flash info \r\n");
 	/* Init: no FLASHes known */
 	for (i = 0; i < CFG_MAX_FLASH_BANKS; ++i) {
 		flash_info[i].flash_id = FLASH_UNKNOWN;
-		size += flash_info[i].size = flash_get_size (bank_base[i], i);
+		size += flash_info[i].size = flash_get_size (bank_base[i], i);						//从地址0x00000000 获取
 		if (flash_info[i].flash_id == FLASH_UNKNOWN) {
 #ifndef CFG_FLASH_QUIET_TEST
 			printf ("## Unknown FLASH on Bank %d - Size = 0x%08lx = %ld MB\n",
@@ -1078,6 +1079,7 @@ static int flash_toggle (flash_info_t * info, flash_sect_t sect, uint offset, uc
 static int flash_detect_cfi (flash_info_t * info)
 {
 	debug ("flash detect cfi\n");
+	printf("flash detect cfi\n");
 
 	for (info->portwidth = CFG_FLASH_CFI_WIDTH;
 	     info->portwidth <= FLASH_CFI_64BIT; info->portwidth <<= 1) {

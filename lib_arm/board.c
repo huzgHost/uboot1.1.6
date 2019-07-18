@@ -361,8 +361,18 @@ void start_armboot (void)
 	misc_init_r ();
 #endif
 
+#if 1
 	/* enable exceptions */
 	enable_interrupts ();
+#else
+	Port_Init();
+	if (!PreLoadedONRAM) {
+		/* enable exceptions */
+		enable_interrupts ();
+	    /* add by www.100ask.net */
+	    usb_init();
+	}
+#endif
 
 	/* Perform network card initialisation if necessary */
 #ifdef CONFIG_DRIVER_CS8900
