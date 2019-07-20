@@ -26,7 +26,9 @@ include $(TOPDIR)/config.mk
 LIB	= $(obj)lib$(BOARD).a
 
 # COBJS	:= smdk2440.o flash.o
-COBJS	:= smdk2440.o boot_init.o							# JZ2440接入的flash支持CFI模式，所以直接通过支持CFI可以了，而不用 添加flash.o 支持JEDEC
+# COBJS	:= smdk2440.o boot_init.o							# JZ2440接入的flash支持CFI模式，所以直接通过支持CFI可以了，而不用 添加flash.o 支持JEDEC
+COBJS	:= smdk2440.o flash.o boot_init.o
+
 SOBJS	:= lowlevel_init.o
 
 SRCS	:= $(SOBJS:.o=.S) $(COBJS:.o=.c)

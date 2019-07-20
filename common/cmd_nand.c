@@ -326,65 +326,92 @@ int do_nand(cmd_tbl_t * cmdtp, int flag, int argc, char *argv[])
 		if (arg_off_size(argc - 3, argv + 3, nand, &off, &size) != 0)		// bootcmd=nand read.jffs2 0x30007FC0 kernel; bootm 0x30007FC0
 			return 1;
 
-		s = strchr(cmd, '.');
-		if (s != NULL &&
-		    (!strcmp(s, ".jffs2") || !strcmp(s, ".e") || !strcmp(s, ".i"))) {
-			if (read) {
-				/* read */
-				nand_read_options_t opts;
-				memset(&opts, 0, sizeof(opts));
-				opts.buffer	= (u_char*) addr;
-				opts.length	= size;
-				opts.offset	= off;
-				opts.quiet      = quiet;
-				ret = nand_read_opts(nand, &opts);
-			} else {
-				/* write */
-				nand_write_options_t opts;
-				memset(&opts, 0, sizeof(opts));
-				opts.buffer	= (u_char*) addr;
-				opts.length	= size;
-				opts.offset	= off;
-				/* opts.forcejffs2 = 1; */
-				opts.pad	= 1;
-				opts.blockalign = 1;
-				opts.quiet      = quiet;
-				ret = nand_write_opts(nand, &opts);
-			}
-		} else if(s != NULL && !strcmp(s, ".yaffs")) {
-			if (read) {
-				/* read */
-				nand_read_options_t opts;
-				memset(&opts, 0, sizeof(opts));
-				opts.buffer	= (u_char*) addr;
-				opts.length	= size;
-				opts.offset	= off;
-				opts.quiet      = quiet;
-				opts.noecc 	= 1;
-				opts.nocheckbadblk = 1;
-				ret = nand_read_opts(nand, &opts);
-			} else {
-				/* write */
-				nand_write_options_t opts;
-				memset(&opts, 0, sizeof(opts));
-				opts.buffer	= (u_char*) addr;			//yaffs文件系统映像存放的地址
-				opts.length	= size;						//yaffs文件的长度
-				opts.offset	= off;						//烧写到nandflash的偏移地址
-				/* opts.forcejffs2 = 1; */
-				opts.noecc	= 1;						// 不需要计算ecc,yaffs映像中有oob数据
-				opts.writeoob = 0;						// 写oob数据
-				opts.blockalign = 1;
-				opts.quiet      = quiet;				// 是否打印提示信息
-				opts.skipfirstblk = 0;					// 路过第一个可用块
-				opts.nocheckbadblk = 1;
-				ret = nand_write_opts(nand, &opts);
-			}
-		} else {
-			if (read)
-				ret = nand_read(nand, off, &size, (u_char *)addr);
-			else
-				ret = nand_write(nand, off, &size, (u_char *)addr);
-		}
+        s = strchr(cmd, '.');
+        if (s != NULL &&
+            (!strcmp(s, ".jffs2") || !strcmp(s, ".e") || !strcmp(s, ".i"))) {
+            if (read) {
+                /* read */
+                nand_read_options_t opts;
+                memset(&opts, 0, sizeof(opts));
+                opts.buffer = (u_char*) addr;
+                opts.length = size;
+                opts.offset = off;
+                opts.quiet      = quiet;
+                ret = nand_read_opts(nand, &opts);
+            } else {
+                /* write */
+                nand_write_options_t opts;
+                memset(&opts, 0, sizeof(opts));
+                opts.buffer = (u_char*) addr;
+                opts.length = size;
+                opts.offset = off;
+                /* opts.forcejffs2 = 1; */
+                opts.pad    = 1;
+                opts.blockalign = 1;
+                opts.quiet      = quiet;
+                ret = nand_write_opts(nand, &opts);
+            }
+        }else if (  s != NULL && !strcmp(s, ".yaffs")){
+            if (read) {
+                /* read */
+                nand_read_options_t opts;
+                memset(&opts, 0, sizeof(opts));
+                opts.buffer = (u_char*) addr;
+                opts.length = size;
+                opts.offset = off;
+                opts.readoob = 1;
+                opts.quiet      = quiet;
+                ret = nand_read_opts(nand, &opts);
+            } else {
+                /* write */
+                nand_write_options_t opts;
+                memset(&opts, 0, sizeof(opts));
+                opts.buffer = (u_char*) addr;
+                opts.length = size;
+                opts.offset = off;
+                /* opts.forceyaffs = 1; */
+                opts.noecc = 1;
+                opts.writeoob = 1;
+                opts.blockalign = 1;
+                opts.quiet      = quiet;
+                opts.skipfirstblk = 1;
+                ret = nand_write_opts(nand, &opts);
+            }
+        }else if (  s != NULL && !strcmp(s, ".raw")){
+            if (read) {
+                /* read */
+                nand_read_options_t opts;
+                memset(&opts, 0, sizeof(opts));
+                opts.buffer = (u_char*) addr;
+                opts.length = size;
+                opts.offset = off;
+                opts.readoob = 0;
+                opts.quiet      = quiet;
+                opts.noecc  = 1;
+                opts.nocheckbadblk = 1;
+                ret = nand_read_opts(nand, &opts);
+            } else {
+                /* write */
+                nand_write_options_t opts;
+                memset(&opts, 0, sizeof(opts));
+                opts.buffer = (u_char*) addr;
+                opts.length = size;
+                opts.offset = off;
+                /* opts.forceyaffs = 1; */
+                opts.noecc = 1;
+                opts.writeoob = 0;
+                opts.blockalign = 1;
+                opts.quiet      = quiet;
+                opts.skipfirstblk = 0;
+                opts.nocheckbadblk = 1;
+                ret = nand_write_opts(nand, &opts);
+            }
+        }        else {
+            if (read)
+                ret = nand_read(nand, off, &size, (u_char *)addr);
+            else
+                ret = nand_write(nand, off, &size, (u_char *)addr);
+        }
 
 		printf(" %d bytes %s: %s\n", size,
 		       read ? "read" : "written", ret ? "ERROR" : "OK");
@@ -490,10 +517,14 @@ U_BOOT_CMD(nand, 5, 1, do_nand,
 	"nand read[.jffs2]     - addr off|partition size\n"
 	"nand write[.jffs2]    - addr off|partiton size - read/write `size' bytes starting\n"
 	"    at offset `off' to/from memory address `addr'\n"
-	"nand read.yaffs addr off size	- read the 'size' byte yaffs image starting\n"
-	"    at offset `off' from memory address `addr'\n"
-	"nand write.yaffs addr off size	- write the 'size' byte yaffs image starting\n"
-	"    at offset `off' to memory address `addr'\n"
+    "nand read.yaffs addr off size - read the `size' byte yaffs image starting\n"
+    "    at offset `off' to memory address `addr'\n"
+    "nand write.yaffs addr off size - write the `size' byte yaffs image starting\n"
+    "    at offset `off' from memory address `addr'\n"
+    "nand read.raw addr off size - read the `size' bytes starting\n"
+    "    at offset `off' to memory address `addr', without oob and ecc\n"
+    "nand write.raw addr off size - write the `size' bytes starting\n"
+    "    at offset `off' from memory address `addr', without oob and ecc\n"
 	"nand erase [clean] [off size] - erase `size' bytes from\n"
 	"    offset `off' (entire device if not specified)\n"
 	"nand bad - show bad blocks\n"
@@ -571,24 +602,24 @@ int do_nandboot(cmd_tbl_t * cmdtp, int flag, int argc, char *argv[])
 	struct part_info *part;
 	u8 pnum;
 
-	if (argc >= 2) {
-		char *p = (argc == 2) ? argv[1] : argv[2];
-		if (!(str2long(p, &addr)) && (mtdparts_init() == 0) &&
-		    (find_dev_and_part(p, &dev, &pnum, &part) == 0)) {
-			if (dev->id->type != MTD_DEV_TYPE_NAND) {
-				puts("Not a NAND device\n");
-				return 1;
-			}
-			if (argc > 3)
-				goto usage;
-			if (argc == 3)
-				addr = simple_strtoul(argv[2], NULL, 16);
-			else
-				addr = CFG_LOAD_ADDR;
-			return nand_load_image(cmdtp, &nand_info[dev->id->num],
-					       part->offset, addr, argv[0]);
-		}
-	}
+    if (argc >= 2) {
+        char *p = (argc == 2) ? argv[1] : argv[2];
+        if (!(str2long(p, &addr)) && (mtdparts_init() == 0) &&
+            (find_dev_and_part(p, &dev, &pnum, &part) == 0)) {
+            if (dev->id->type != MTD_DEV_TYPE_NAND) {
+                puts("Not a NAND device\n");
+                return 1;
+            }
+            if (argc > 3)
+                goto usage;
+            if (argc == 3)
+                addr = simple_strtoul(argv[1], NULL, 16);
+            else
+                addr = CFG_LOAD_ADDR;
+            return nand_load_image(cmdtp, &nand_info[dev->id->num],
+                           part->offset, addr, argv[0]);
+        }
+    }
 #endif
 
 	switch (argc) {
@@ -636,8 +667,8 @@ usage:
 }
 
 U_BOOT_CMD(nboot, 4, 1, do_nandboot,
-	"nboot   - boot from NAND device\n",
-	"[partition] | [[[loadAddr] dev] offset]\n");
+    "nboot   - boot from NAND device\n",
+    "[[loadAddr] partition] | [[[loadAddr] dev] offset]\n");
 
 #endif				/* (CONFIG_COMMANDS & CFG_CMD_NAND) */
 

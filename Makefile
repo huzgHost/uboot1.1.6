@@ -83,9 +83,14 @@ BUILD_DIR := $(shell cd $(BUILD_DIR) && /bin/pwd)
 $(if $(BUILD_DIR),,$(error output directory "$(saved-output)" does not exist))
 endif # ifneq ($(BUILD_DIR),)
 
+#####	如果定义了$(BUILD_DIR), OBJTREE := $(BUILD_DIR), 如果没有定义$(BUILD_DIR)， 则 OBJTREE := $(CURDIR)			#####
+#####	这里并没有定义$(BUILD_DIR)，所以	OBJTREE := $(CURDIR),即表示当前目录											#####
 OBJTREE		:= $(if $(BUILD_DIR),$(BUILD_DIR),$(CURDIR))
+#####	SRCTREE := $(CURDIR),即表示当前目录																			#####
 SRCTREE		:= $(CURDIR)
+#####	TOPDIR := $(SRCTREE),即表示当前目录																			#####
 TOPDIR		:= $(SRCTREE)
+#####	LNDIR := $(OBJTREE),即表示当前目录																			#####
 LNDIR		:= $(OBJTREE)
 export	TOPDIR SRCTREE OBJTREE
 
@@ -113,6 +118,7 @@ export obj src
 
 ifeq ($(OBJTREE)/include/config.mk,$(wildcard $(OBJTREE)/include/config.mk))
 
+#####	引入通过make 100ask24x0_config 生成的config.mk 文件															#####
 # load ARCH, BOARD, and CPU configuration
 include $(OBJTREE)/include/config.mk
 export	ARCH CPU BOARD VENDOR SOC
@@ -165,7 +171,8 @@ include $(TOPDIR)/config.mk
 
 #########################################################################
 # U-Boot objects....order is important (i.e. start must be first)
-
+#####	引入通过config.mk 文件, $(CPU) = arm920t																	#####
+#####	OBJS = cpu/arm920t/start.o																				#####
 OBJS  = cpu/$(CPU)/start.o
 ifeq ($(CPU),i386)
 OBJS += cpu/$(CPU)/start16.o
@@ -191,11 +198,15 @@ endif
 OBJS := $(addprefix $(obj),$(OBJS))
 
 LIBS  = lib_generic/libgeneric.a
+#####	LIBS += board/100ask24x0/lib100ask24x0.a																#####
 LIBS += board/$(BOARDDIR)/lib$(BOARD).a
+#####	LIBS += cpu/arm920t/libarm920t.a																		#####
 LIBS += cpu/$(CPU)/lib$(CPU).a
 ifdef SOC
+#####	LIBS += cpu/arm920t/s3c24x0/libs3c24x0.a																#####
 LIBS += cpu/$(CPU)/$(SOC)/lib$(SOC).a
 endif
+#####	LIBS += lib_arm/libarm.a																				#####
 LIBS += lib_$(ARCH)/lib$(ARCH).a
 LIBS += fs/cramfs/libcramfs.a fs/fat/libfat.a fs/fdos/libfdos.a fs/jffs2/libjffs2.a \
 	fs/reiserfs/libreiserfs.a fs/ext2/libext2fs.a
@@ -245,7 +256,7 @@ $(obj)u-boot.hex:	$(obj)u-boot
 
 $(obj)u-boot.srec:	$(obj)u-boot
 		$(OBJCOPY) ${OBJCFLAGS} -O srec $< $@
-
+#####	u-boot.bin(二进制格式) 依赖 u-boot(elf格式)																			#####
 $(obj)u-boot.bin:	$(obj)u-boot
 		$(OBJCOPY) ${OBJCFLAGS} -O binary $< $@
 
@@ -259,6 +270,7 @@ $(obj)u-boot.img:	$(obj)u-boot.bin
 $(obj)u-boot.dis:	$(obj)u-boot
 		$(OBJDUMP) -d $< > $@
 
+#####	生成elf格式的u-boot																									#####
 $(obj)u-boot:		depend version $(SUBDIRS) $(OBJS) $(LIBS) $(LDSCRIPT)
 		UNDEF_SYM=`$(OBJDUMP) -x $(LIBS) |sed  -n -e 's/.*\(__u_boot_cmd_.*\)/-u\1/p'|sort|uniq`;\
 		cd $(LNDIR) && $(LD) $(LDFLAGS) $$UNDEF_SYM $(__OBJS) \

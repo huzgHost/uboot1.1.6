@@ -8,9 +8,13 @@
 # (C) 2002-2006 DENX Software Engineering, Wolfgang Denk <wd@denx.de>
 #
 
+#####	mkconfig 100ask24x0 arm arm920t 100ask24x0 NULL s3c24x0				#####
+#####	mkconfig $1			$2	$3 		$4		   $5   $6					#####
+
 APPEND=no	# Default: Create new config file
 BOARD_NAME=""	# Name to print in make output
 
+##### 	我们的命令中并没有 --, -a, -n参数， 这里并没有执行						#####
 while [ $# -gt 0 ] ; do
 	case "$1" in
 	--) shift ; break ;;
@@ -20,8 +24,11 @@ while [ $# -gt 0 ] ; do
 	esac
 done
 
+##### 	如果${BOARD_NAME}有定义，则BOARD_NAME=$1 = 100ask24x0  				#####
 [ "${BOARD_NAME}" ] || BOARD_NAME="$1"
+##### 	BOARD_NAME=100ask24x0												#####
 
+#####	$# 表示参数个数, -lt 表示小于, -gt 表示大于							#####
 [ $# -lt 4 ] && exit 1
 [ $# -gt 6 ] && exit 1
 
@@ -30,6 +37,7 @@ echo "Configuring for ${BOARD_NAME} board..."
 #
 # Create link to architecture specific headers
 #
+#####	分析Makefile, $SRCTREE == $OBJTREE, 这里条件不成立，执行else			#####
 if [ "$SRCTREE" != "$OBJTREE" ] ; then
 	mkdir -p ${OBJTREE}/include
 	mkdir -p ${OBJTREE}/include2
@@ -44,33 +52,40 @@ if [ "$SRCTREE" != "$OBJTREE" ] ; then
 	ln -s asm-$2 asm
 else
 	cd ./include
-	rm -f asm
-	ln -s asm-$2 asm
+	rm -f asm						##### 删除asm的连接文件					#####
+	ln -s asm-$2 asm				##### ln -s asm-arm asm , 这样的好处：头文件include <asm/type.h>引入的文件，可以针对不同芯片引入不同的头文件(asm-arm,asm-mips...)	#####
 fi
 
 rm -f asm-$2/arch
 
+#####	$6为0 或者 为NULL,这里不满足，执行else								#####
 if [ -z "$6" -o "$6" = "NULL" ] ; then
 	ln -s ${LNPREFIX}arch-$3 asm-$2/arch
 else
-	ln -s ${LNPREFIX}arch-$6 asm-$2/arch
+	ln -s ${LNPREFIX}arch-$6 asm-$2/arch					#####	ln -s arch-3c24x0 asm-arm/arch, include/asm-arm/arm 指向 arch-3c24x0								#####
 fi
 
 if [ "$2" = "arm" ] ; then
-	rm -f asm-$2/proc
-	ln -s ${LNPREFIX}proc-armv asm-$2/proc
+	rm -f asm-$2/proc										#####	rm -f asm-arm/proc 																				#####
+	ln -s ${LNPREFIX}proc-armv asm-$2/proc					#####	ln -s arch-armv asm-arm/proc, include/asm-arm/proc 指向 arch-armv								#####
 fi
 
 #
 # Create include file for Make
 #
-echo "ARCH   = $2" >  config.mk
-echo "CPU    = $3" >> config.mk
-echo "BOARD  = $4" >> config.mk
+echo "ARCH   = $2" >  config.mk								#####	ARCH = arm																						#####
+echo "CPU    = $3" >> config.mk								#####	CPU = arm920t																					#####
+echo "BOARD  = $4" >> config.mk								#####	BOARD = 100ask24x0																				#####
 
 [ "$5" ] && [ "$5" != "NULL" ] && echo "VENDOR = $5" >> config.mk
 
 [ "$6" ] && [ "$6" != "NULL" ] && echo "SOC    = $6" >> config.mk
+
+#####	以上执行完成， config.mk 文件内容如下:								#####
+#####	ARCH   = arm														#####
+#####	CPU	   = arm9206													#####
+#####	BOARD  = 100ask24x0													#####
+#####	SOC    = s3c24x0													#####
 
 #
 # Create board specific header file
@@ -83,5 +98,9 @@ else
 fi
 echo "/* Automatically generated - do not edit */" >>config.h
 echo "#include <configs/$1.h>" >>config.h
+
+#####	以上执行完成， config.h 文件内容如下:									#####
+#####	/* Automatically generated - do not edit */							#####
+#####	#include <configs/100ask24x0.h>										#####
 
 exit 0

@@ -206,19 +206,19 @@
 #endif
 #ifdef CONFIG_MX_LV160
 #define PHYS_FLASH_SIZE			0x00200000 /* 2MKB */
+//扇区数
 #define CFG_MAX_FLASH_SECT		(35)    /* max number of sectors on one chip */
+//参数存放的地址
 #define CFG_ENV_ADDR			(CFG_FLASH_BASE + 0x070000) /* addr of environment */
 #endif
 
 
+#if 0
 #define CFG_FLASH_CFI				1
 #define CFG_FLASH_CFI_DRIVER 		1
 #define CFG_FLASH_USE_BUFFER_WRITE	1
 #define CONFIG_FLASH_CFI_LEGACY		1
-
-#ifdef CFG_FLASH_CFI_DRIVER
-//#define CFG_MAX_FLASH_SECT	 512   /* max number of sectors on one chip */
-#define CFG_FLASH_CFI_WIDTH  0x02  /* FLASH_CFI_16BIT */
+#define CFG_FLASH_CFI_WIDTH  		0x02  /* FLASH_CFI_16BIT */
 #endif
 
 /* timeout values are in ticks */

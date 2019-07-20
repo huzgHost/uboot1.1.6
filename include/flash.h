@@ -43,9 +43,18 @@ typedef struct {
 	ulong	write_tout;		/* maximum write timeout		*/
 	ulong	buffer_write_tout;	/* maximum buffer write timeout		*/
 	ushort	vendor;			/* the primary vendor id		*/
-	ushort	cmd_reset;		/* Vendor specific reset command	*/
+	ushort	cmd_reset;		/* vendor specific reset command	*/
 	ushort	interface;		/* used for x8/x16 adjustments		*/
 	ushort	legacy_unlock;		/* support Intel legacy (un)locking	*/
+	uchar	manufacturer_id;	/* manufacturer id			*/
+	ushort	device_id;		/* device id				*/
+	ushort	device_id2;		/* extended device id			*/
+	ushort	ext_addr;		/* extended query table address		*/
+	ushort	cfi_version;		/* cfi version				*/
+	ushort	cfi_offset;		/* offset for cfi query			*/
+	ulong   addr_unlock1;		/* unlock address 1 for AMD flash roms  */
+	ulong   addr_unlock2;		/* unlock address 2 for AMD flash roms  */
+	const char *name;		/* human-readable name	                */
 #endif
 } flash_info_t;
 
@@ -71,6 +80,7 @@ typedef struct {
 #define FLASH_CFI_X8		0x00
 #define FLASH_CFI_X16		0x01
 #define FLASH_CFI_X8X16		0x02
+#define FLASH_CFI_X16X32	0x05
 
 /* convert between bit value and numeric value */
 #define CFI_FLASH_SHIFT_WIDTH	3
@@ -95,6 +105,13 @@ extern void flash_read_user_serial(flash_info_t * info, void * buffer, int offse
 extern void flash_read_factory_serial(flash_info_t * info, void * buffer, int offset, int len);
 #endif	/* CFG_FLASH_PROTECTION */
 
+#ifdef CONFIG_FLASH_CFI_LEGACY
+extern ulong board_flash_get_legacy(ulong base, int banknum, flash_info_t *info);
+extern int jedec_flash_match(flash_info_t *info, ulong base);
+#define CFI_CMDSET_AMD_LEGACY		0xFFF0
+#endif
+
+
 /*-----------------------------------------------------------------------
  * return codes from flash_write():
  */
@@ -113,6 +130,11 @@ extern void flash_read_factory_serial(flash_info_t * info, void * buffer, int of
  */
 #define FLAG_PROTECT_SET	0x01
 #define FLAG_PROTECT_CLEAR	0x02
+#define	FLAG_PROTECT_INVALID	0x03
+/*-----------------------------------------------------------------------
+ * Set Environment according to label:
+ */
+#define	FLAG_SETENV		0x80
 
 /*-----------------------------------------------------------------------
  * Device IDs
@@ -123,10 +145,10 @@ extern void flash_read_factory_serial(flash_info_t * info, void * buffer, int of
 #define ATM_MANUFACT	0x001F001F	/* ATMEL */
 #define STM_MANUFACT	0x00200020	/* STM (Thomson) manuf. ID in D23.. -"- */
 #define SST_MANUFACT	0x00BF00BF	/* SST	   manuf. ID in D23..D16, D7..D0 */
-#define MT_MANUFACT	0x00890089	/* MT	   manuf. ID in D23..D16, D7..D0 */
+#define MT_MANUFACT		0x00890089	/* MT	   manuf. ID in D23..D16, D7..D0 */
 #define INTEL_MANUFACT	0x00890089	/* INTEL   manuf. ID in D23..D16, D7..D0 */
 #define INTEL_ALT_MANU	0x00B000B0	/* alternate INTEL namufacturer ID	*/
-#define MX_MANUFACT	0x00C200C2	/* MXIC	   manuf. ID in D23..D16, D7..D0 */
+#define MX_MANUFACT		0x00C200C2	/* MXIC	   manuf. ID in D23..D16, D7..D0 */
 #define TOSH_MANUFACT	0x00980098	/* TOSHIBA manuf. ID in D23..D16, D7..D0 */
 #define MT2_MANUFACT	0x002C002C	/* alternate MICRON manufacturer ID*/
 #define EXCEL_MANUFACT	0x004A004A	/* Excel Semiconductor			*/
@@ -176,7 +198,7 @@ extern void flash_read_factory_serial(flash_info_t * info, void * buffer, int of
 #define AMD_ID_LV160T	0x22C422C4	/* 29LV160T ID (16 M, top boot sector)	*/
 #define AMD_ID_LV160B	0x22492249	/* 29LV160B ID (16 M, bottom boot sect) */
 
-#define MX_ID_LV160B	0x22492249	// JZ2440 配置的为 MX_LV160,大小为16M, bottom boot sect  huzghost@126.com
+#define MX_ID_LV160B	0x22492249	// JZ2440 接入的norflash为 MX_LV160,大小为16M, bottom boot sect  huzghost@126.com
 
 #define AMD_ID_DL163T	0x22282228	/* 29DL163T ID (16 M, top boot sector)	*/
 #define AMD_ID_DL163B	0x222B222B	/* 29DL163B ID (16 M, bottom boot sect) */
@@ -248,6 +270,8 @@ extern void flash_read_factory_serial(flash_info_t * info, void * buffer, int of
 #define STM_ID_x800AB	0x005B005B	/* M29W800AB ID (8M = 512K x 16 )	*/
 #define STM_ID_29W320DT 0x22CA22CA	/* M29W320DT ID (32 M, top boot sector) */
 #define STM_ID_29W320DB 0x22CB22CB	/* M29W320DB ID (32 M, bottom boot sect)	*/
+#define STM_ID_29W320ET 0x22562256	/* M29W320ET ID (32 M, top boot sector) */
+#define STM_ID_29W320EB 0x22572257	/* M29W320EB ID (32 M, bottom boot sect)*/
 #define STM_ID_29W040B	0x00E300E3	/* M29W040B ID (4M = 512K x 8)	*/
 #define FLASH_PSD4256GV 0x00E9		/* PSD4256 Flash and CPLD combination	*/
 
@@ -300,6 +324,7 @@ extern void flash_read_factory_serial(flash_info_t * info, void * buffer, int of
 
 #define TOSH_ID_FVT160	0xC2		/* TC58FVT160 ID (16 M, top )		*/
 #define TOSH_ID_FVB160	0x43		/* TC58FVT160 ID (16 M, bottom )	*/
+#define PHILIPS_LPC2292 0x0401FF13  /* LPC2292 internal FLASH			*/
 
 /*-----------------------------------------------------------------------
  * Internal FLASH identification codes
@@ -441,6 +466,7 @@ extern void flash_read_factory_serial(flash_info_t * info, void * buffer, int of
 #define FLASH_MAN_MT	0x00400000
 #define FLASH_MAN_SHARP 0x00500000
 #define FLASH_MAN_ATM	0x00600000
+#define FLASH_MAN_CFI	0x01000000
 
 
 #define FLASH_TYPEMASK	0x0000FFFF	/* extract FLASH type	information	*/

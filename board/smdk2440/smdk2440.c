@@ -140,3 +140,13 @@ int dram_init (void)
 
 	return 0;
 }
+#if 0
+ulong board_flash_get_legacy(ulong base, int banknum, flash_info_t *info)
+{	
+	info->portwidth = CFG_FLASH_CFI_WIDTH;
+	info->chipwidth = CFG_FLASH_CFI_WIDTH;
+	info->interface = FLASH_CFI_X16;
+	return 1;
+}
+#endif
+
