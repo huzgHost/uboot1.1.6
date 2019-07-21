@@ -425,7 +425,7 @@ eth_init(bd_t * bd)
 	dm9000_probe();
 
 	/* Auto-detect 8/16/32 bit mode, ISR Bit 6+7 indicate bus width */
-	io_mode = DM9000_ior(DM9000_ISR) >> 6;
+	io_mode = DM9000_ior(DM9000_ISR) >> 6;					// ¼ì²â¹¤×÷Ä£Ê½£¬×ÜÏßÊÇ8Î»£¬16Î»£¬32Î»
 
 	switch (io_mode) {
 	case 0x0:  /* 16-bit mode */

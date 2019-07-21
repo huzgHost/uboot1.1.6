@@ -75,8 +75,10 @@
 #if !defined(CONFIG_DRIVER_CS8900)
 #define CONFIG_DRIVER_DM9000           1
 #define CONFIG_DM9000_USE_16BIT        1
+//DM9000 接的CS4,也就是BANK4上，基地址为 0x20000000
 #define CONFIG_DM9000_BASE             0x20000000
 #define DM9000_IO                      0x20000000
+//DM9000的CMD接在addr2上，故data端地址为 0x20000004
 #define DM9000_DATA                    0x20000004
 #endif
 

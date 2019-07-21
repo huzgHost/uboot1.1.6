@@ -475,7 +475,7 @@ static void flash_write_cmd (flash_info_t * info, flash_sect_t sect,
 		flash_write8(cword.c, addr);
 		break;
 	case FLASH_CFI_16BIT:
-		printf ("fwc addr %p cmd %x %4.4x 16bit x %d bit\n", addr,
+		debug ("fwc addr %p cmd %x %4.4x 16bit x %d bit\n", addr,
 		       cmd, cword.w,
 		       info->chipwidth << CFI_FLASH_SHIFT_WIDTH);
 		flash_write16(cword.w, addr);
@@ -1501,8 +1501,6 @@ static void cmdset_amd_read_jedec_ids(flash_info_t *info)
 	info->manufacturer_id = flash_read_uchar (info,
 					FLASH_OFFSET_MANUFACTURER_ID);
 
-	printf("amd info->chipwidth = 0x%x \r\n", info->chipwidth);
-
 	switch (info->chipwidth){
 	case FLASH_CFI_8BIT:
 		info->device_id = flash_read_uchar (info,
@@ -1542,8 +1540,6 @@ void flash_read_jedec_ids (flash_info_t * info)
 	info->manufacturer_id = 0;
 	info->device_id       = 0;
 	info->device_id2      = 0;
-
-	printf("info->vendor = 0x%x \r\n", info->vendor);
 
 	switch (info->vendor) {
 	case CFI_CMDSET_INTEL_PROG_REGIONS:
