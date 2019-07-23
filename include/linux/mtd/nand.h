@@ -307,7 +307,7 @@ struct nand_chip {
 	void		(*erase_cmd)(struct mtd_info *mtd, int page);
 	int		(*scan_bbt)(struct mtd_info *mtd);
 	int		eccmode;
-	int		eccsize;
+	int		eccsize;							//
 	int		eccbytes;
 	int		eccsteps;
 	int		chip_delay;
@@ -325,12 +325,12 @@ struct nand_chip {
 	int		oobdirty;
 	u_char		*data_poi;
 	unsigned int	options;
-	int		badblockpos;
+	int		badblockpos;					//坏块位置:0
 	int		numchips;
 	unsigned long	chipsize;
 	int		pagemask;
 	int		pagebuf;
-	struct nand_oobinfo	*autooob;
+	struct nand_oobinfo	*autooob;			//使用 64 类型的 oob数据
 	uint8_t		*bbt;
 	struct nand_bbt_descr	*bbt_td;
 	struct nand_bbt_descr	*bbt_md;

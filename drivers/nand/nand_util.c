@@ -209,7 +209,7 @@ int nand_erase_opts(nand_info_t *meminfo, const nand_erase_options_t *opts)
 
 		if (!opts->quiet) {
 			int percent = (int)
-				((unsigned long long)
+				((unsigned long)
 				 (erase.addr+meminfo->erasesize-opts->offset)
 				 * 100 / erase_length);
 
@@ -293,9 +293,9 @@ int nand_write_opts(nand_info_t *meminfo, const nand_write_options_t *opts)
 	int oobinfochanged = 0;
 	int percent_complete = -1;
 	struct nand_oobinfo old_oobinfo;
-	ulong mtdoffset = opts->offset;
+	ulong mtdoffset = opts->offset;						// 偏移地址: 0x260000
 	ulong erasesize_blockalign;
-	u_char *buffer = opts->buffer;
+	u_char *buffer = opts->buffer;						// 内存地址: 0x30000000
 	size_t written;
 	int result;
 	int skipfirstblk = opts->skipfirstblk;
@@ -310,10 +310,11 @@ int nand_write_opts(nand_info_t *meminfo, const nand_write_options_t *opts)
 	if (opts->blockalign == 0) {
 		erasesize_blockalign = meminfo->erasesize;
 	} else {
-		erasesize_blockalign = meminfo->erasesize * opts->blockalign;
+		erasesize_blockalign = meminfo->erasesize * opts->blockalign;//擦除为 128K(一个block有64个page, 总共 2048个block)
 	}
 
 	/* make sure device page sizes are valid */
+	//oobsize = 64, oobblock = 2048
 	if (!(meminfo->oobsize == 16 && meminfo->oobblock == 512)
 	    && !(meminfo->oobsize == 8 && meminfo->oobblock == 256)
 	    && !(meminfo->oobsize == 64 && meminfo->oobblock == 2048)) {
@@ -322,6 +323,7 @@ int nand_write_opts(nand_info_t *meminfo, const nand_write_options_t *opts)
 	}
 
 	/* read the current oob info */
+	// nand初始化时候, 赋值:nand_oob_64
 	memcpy(&old_oobinfo, &meminfo->oobinfo, sizeof(old_oobinfo));
 
 	/* write without ecc? */
@@ -359,11 +361,12 @@ int nand_write_opts(nand_info_t *meminfo, const nand_write_options_t *opts)
 	}
 
 	/* get image length */
-	imglen = opts->length;
+	imglen = opts->length;										// 需要写入的数据长度
 	pagelen = meminfo->oobblock
-		+ ((opts->writeoob != 0) ? meminfo->oobsize : 0);
+		+ ((opts->writeoob != 0) ? meminfo->oobsize : 0);		// 写入的page长度:2048 + 64(oob) = 2112
 
 	/* check, if file is pagealigned */
+	// 判断写的长度是否可以整除 pagelen, 对于 yaffs文件，是连同oob数据一同定入的
 	if ((!opts->pad) && ((imglen % pagelen) != 0)) {
 		printf("Input block length is not page aligned\n");
 		goto restoreoob;
@@ -404,12 +407,13 @@ int nand_write_opts(nand_info_t *meminfo, const nand_write_options_t *opts)
 			 * bad blocks */
 			if (!opts->nocheckbadblk) {
 				do {
-					int ret = meminfo->block_isbad(meminfo, offs);
+					int ret = meminfo->block_isbad(meminfo, offs);//判断是不是坏块
 
 					if (ret < 0) {
 						printf("Bad block check failed\n");
 						goto restoreoob;
 					}
+					//坏块
 					if (ret == 1) {
 						baderaseblock = 1;
 						if (!opts->quiet)
@@ -422,7 +426,7 @@ int nand_write_opts(nand_info_t *meminfo, const nand_write_options_t *opts)
 
 					if (baderaseblock) {
 						mtdoffset = blockstart
-							+ erasesize_blockalign;
+							+ erasesize_blockalign;//如果是坏块，写入的地址指向下一块block
 					}
 					offs +=	 erasesize_blockalign
 						/ opts->blockalign;
@@ -487,7 +491,7 @@ int nand_write_opts(nand_info_t *meminfo, const nand_write_options_t *opts)
 
 		if (!opts->quiet) {
 			int percent = (int)
-				((unsigned long long)
+				((unsigned long)
 				 (opts->length-imglen) * 100
 				 / opts->length);
 			/* output progress message only at whole percent
@@ -543,6 +547,8 @@ int nand_read_opts(nand_info_t *meminfo, const nand_read_options_t *opts)
 	ulong mtdoffset = opts->offset;
 	u_char *buffer = opts->buffer;
 	int result;
+	struct nand_oobinfo old_oobinfo;
+    int oobinfochanged = 0;
 
 	/* make sure device page sizes are valid */
 	if (!(meminfo->oobsize == 16 && meminfo->oobblock == 512)
@@ -568,6 +574,16 @@ int nand_read_opts(nand_info_t *meminfo, const nand_read_options_t *opts)
 	if (!opts->quiet)
 		printf("\n");
 
+	/* read the current oob info */
+    memcpy(&old_oobinfo, &meminfo->oobinfo, sizeof(old_oobinfo));
+
+    /* write without ecc? */
+    if (opts->noecc) {
+        memcpy(&meminfo->oobinfo, &none_oobinfo,
+               sizeof(meminfo->oobinfo));
+        oobinfochanged = 1;
+    }
+
 	/* get data from input and write to the device */
 	while (imglen && (mtdoffset < meminfo->size)) {
 
@@ -588,30 +604,32 @@ int nand_read_opts(nand_info_t *meminfo, const nand_read_options_t *opts)
 
 			/* check all the blocks in an erase block for
 			 * bad blocks */
-			do {
-				int ret = meminfo->block_isbad(meminfo, offs);
+			if (!opts->nocheckbadblk) {
+				do {
+					int ret = meminfo->block_isbad(meminfo, offs);
 
-				if (ret < 0) {
-					printf("Bad block check failed\n");
-					return -1;
-				}
-				if (ret == 1) {
-					baderaseblock = 1;
-					if (!opts->quiet)
-						printf("\rBad block at 0x%lx "
-						       "in erase block from "
-						       "0x%x will be skipped\n",
-						       (long) offs,
-						       blockstart);
-				}
+					if (ret < 0) {
+						printf("Bad block check failed\n");
+						goto restoreoob;
+					}
+					if (ret == 1) {
+						baderaseblock = 1;
+						if (!opts->quiet)
+							printf("\rBad block at 0x%lx "
+							       "in erase block from "
+							       "0x%x will be skipped\n",
+							       (long) offs,
+							       blockstart);
+					}
 
-				if (baderaseblock) {
-					mtdoffset = blockstart
-						+ meminfo->erasesize;
-				}
-				offs +=	 meminfo->erasesize;
+					if (baderaseblock) {
+						mtdoffset = blockstart
+							+ meminfo->erasesize;
+					}
+					offs +=	 meminfo->erasesize;
 
-			} while (offs < blockstart + meminfo->erasesize);
+				} while (offs < blockstart + meminfo->erasesize);
+			}
 		}
 
 
@@ -625,7 +643,7 @@ int nand_read_opts(nand_info_t *meminfo, const nand_read_options_t *opts)
 		if (result != 0) {
 			printf("reading NAND page at offset 0x%lx failed\n",
 			       mtdoffset);
-			return -1;
+			 goto restoreoob;
 		}
 
 		if (imglen < readlen) {
@@ -647,7 +665,7 @@ int nand_read_opts(nand_info_t *meminfo, const nand_read_options_t *opts)
 			if (result != 0) {
 				printf("\nMTD readoob failure: %d\n",
 				       result);
-				return -1;
+				 goto restoreoob;
 			}
 
 
@@ -663,7 +681,7 @@ int nand_read_opts(nand_info_t *meminfo, const nand_read_options_t *opts)
 
 		if (!opts->quiet) {
 			int percent = (int)
-				((unsigned long long)
+				((unsigned long)
 				 (opts->length-imglen) * 100
 				 / opts->length);
 			/* output progress message only at whole percent
@@ -684,6 +702,12 @@ int nand_read_opts(nand_info_t *meminfo, const nand_read_options_t *opts)
 
 	if (!opts->quiet)
 		printf("\n");
+
+restoreoob:
+    if (oobinfochanged) {
+        memcpy(&meminfo->oobinfo, &old_oobinfo,
+               sizeof(meminfo->oobinfo));
+    }
 
 	if (imglen > 0) {
 		printf("Could not read entire image due to bad blocks\n");

@@ -251,13 +251,16 @@ int do_nand(cmd_tbl_t * cmdtp, int flag, int argc, char *argv[])
 	 * Syntax is:
 	 *   0    1     2       3    4
 	 *   nand erase [clean] [off size]
+	 *	 nand erase 		0x0 		0x00040000				擦除bootloader
+	 *   nand erase 		0x60000		0x00200000				擦除kernel
+	 * 	 nand erase			0x260000	0x0fda0000				擦除root
 	 */
 	if (strcmp(cmd, "erase") == 0 || strcmp(cmd, "scrub") == 0) {
 		nand_erase_options_t opts;
 		/* "clean" at index 2 means request to write cleanmarker */
-		int clean = argc > 2 && !strcmp("clean", argv[2]);
-		int o = clean ? 3 : 2;
-		int scrub = !strcmp(cmd, "scrub");
+		int clean = argc > 2 && !strcmp("clean", argv[2]);		// clean = 0
+		int o = clean ? 3 : 2;									// o = 2
+		int scrub = !strcmp(cmd, "scrub");						// scrub = 0
 
 		printf("\nNAND %s: ", scrub ? "scrub" : "erase");
 		/* skip first two or three arguments, look for offset and size */
@@ -290,7 +293,7 @@ int do_nand(cmd_tbl_t * cmdtp, int flag, int argc, char *argv[])
 				return -1;
 			}
 		}
-		ret = nand_erase_opts(nand, &opts);
+		ret = nand_erase_opts(nand, &opts);							//擦除nand
 		printf("%s\n", ret ? "ERROR" : "OK");
 
 		return ret == 0 ? 0 : 1;
@@ -312,6 +315,14 @@ int do_nand(cmd_tbl_t * cmdtp, int flag, int argc, char *argv[])
 
 	}
 
+	/*
+	 * Syntax is:
+	 *	 nand read.jffs2	0x30000000 0x0		0x00040000	
+	 *   nand write.jffs2 	[add]	   [off 	size]
+	 *	 nand write.jffs2 	0x30000000 0x0 		$(filesize)			写入uboot
+	 * 	 nand write.jffs2  	0x30000000 0x60000	$(filesize)			写入kernel
+	 *	 nand write.yaffs 	0x30000000 0x260000	$(filesize)			写入root
+	 */
 	/* read write */
 	if (strncmp(cmd, "read", 4) == 0 || strncmp(cmd, "write", 5) == 0) {
 		int read;
@@ -325,59 +336,59 @@ int do_nand(cmd_tbl_t * cmdtp, int flag, int argc, char *argv[])
 		printf("\nNAND %s: ", read ? "read" : "write");						// 打印 "NAND read: ... "
 		if (arg_off_size(argc - 3, argv + 3, nand, &off, &size) != 0)		// bootcmd=nand read.jffs2 0x30007FC0 kernel; bootm 0x30007FC0
 			return 1;
-
-        s = strchr(cmd, '.');
-        if (s != NULL &&
-            (!strcmp(s, ".jffs2") || !strcmp(s, ".e") || !strcmp(s, ".i"))) {
-            if (read) {
-                /* read */
-                nand_read_options_t opts;
-                memset(&opts, 0, sizeof(opts));
-                opts.buffer = (u_char*) addr;
-                opts.length = size;
-                opts.offset = off;
-                opts.quiet      = quiet;
-                ret = nand_read_opts(nand, &opts);
-            } else {
-                /* write */
-                nand_write_options_t opts;
-                memset(&opts, 0, sizeof(opts));
-                opts.buffer = (u_char*) addr;
-                opts.length = size;
-                opts.offset = off;
-                /* opts.forcejffs2 = 1; */
-                opts.pad    = 1;
-                opts.blockalign = 1;
-                opts.quiet      = quiet;
-                ret = nand_write_opts(nand, &opts);
-            }
-        }else if (  s != NULL && !strcmp(s, ".yaffs")){
-            if (read) {
-                /* read */
-                nand_read_options_t opts;
-                memset(&opts, 0, sizeof(opts));
-                opts.buffer = (u_char*) addr;
-                opts.length = size;
-                opts.offset = off;
-                opts.readoob = 1;
-                opts.quiet      = quiet;
-                ret = nand_read_opts(nand, &opts);
-            } else {
-                /* write */
-                nand_write_options_t opts;
-                memset(&opts, 0, sizeof(opts));
-                opts.buffer = (u_char*) addr;
-                opts.length = size;
-                opts.offset = off;
-                /* opts.forceyaffs = 1; */
-                opts.noecc = 1;
-                opts.writeoob = 1;
-                opts.blockalign = 1;
-                opts.quiet      = quiet;
-                opts.skipfirstblk = 1;
-                ret = nand_write_opts(nand, &opts);
-            }
-        }else if (  s != NULL && !strcmp(s, ".raw")){
+		
+		s = strchr(cmd, '.');
+		if (s != NULL &&
+		    (!strcmp(s, ".jffs2") || !strcmp(s, ".e") || !strcmp(s, ".i"))) {
+			if (read) {
+				/* read */
+				nand_read_options_t opts;
+				memset(&opts, 0, sizeof(opts));
+				opts.buffer	= (u_char*) addr;
+				opts.length	= size;
+				opts.offset	= off;
+				opts.quiet      = quiet;
+				ret = nand_read_opts(nand, &opts);
+			} else {
+				/* write */
+				nand_write_options_t opts;
+				memset(&opts, 0, sizeof(opts));
+				opts.buffer	= (u_char*) addr;
+				opts.length	= size;
+				opts.offset	= off;
+				/* opts.forcejffs2 = 1; */
+				opts.pad	= 1;
+				opts.blockalign = 1;
+				opts.quiet      = quiet;
+				ret = nand_write_opts(nand, &opts);
+			}
+		} else if(s != NULL && !strcmp(s, ".yaffs")) {
+			if (read) {
+				/* read */
+				nand_read_options_t opts;
+				memset(&opts, 0, sizeof(opts));
+				opts.buffer	= (u_char*) addr;
+				opts.length	= size;
+				opts.offset	= off;
+				opts.readoob = 1;
+				opts.quiet      = quiet;
+				ret = nand_read_opts(nand, &opts);
+			} else {
+				/* write */
+				nand_write_options_t opts;
+				memset(&opts, 0, sizeof(opts));
+				opts.buffer	= (u_char*) addr;			//yaffs文件系统映像存放的地址
+				opts.length	= size;						//yaffs文件的长度
+				opts.offset	= off;						//烧写到nandflash的偏移地址
+				/* opts.forceyaffs = 1; */
+				opts.noecc	= 1;						// 不需要计算ecc,yaffs映像中有oob数据
+				opts.writeoob = 1;						// 写oob数据
+				opts.blockalign = 1;
+				opts.quiet      = quiet;				// 是否打印提示信息
+				opts.skipfirstblk = 1;					// 路过第一个可用块
+				ret = nand_write_opts(nand, &opts);
+			}
+		} else if (  s != NULL && !strcmp(s, ".raw")){
             if (read) {
                 /* read */
                 nand_read_options_t opts;
@@ -406,12 +417,12 @@ int do_nand(cmd_tbl_t * cmdtp, int flag, int argc, char *argv[])
                 opts.nocheckbadblk = 1;
                 ret = nand_write_opts(nand, &opts);
             }
-        }        else {
-            if (read)
-                ret = nand_read(nand, off, &size, (u_char *)addr);
-            else
-                ret = nand_write(nand, off, &size, (u_char *)addr);
-        }
+        } else {
+			if (read)
+				ret = nand_read(nand, off, &size, (u_char *)addr);
+			else
+				ret = nand_write(nand, off, &size, (u_char *)addr);
+		}
 
 		printf(" %d bytes %s: %s\n", size,
 		       read ? "read" : "written", ret ? "ERROR" : "OK");

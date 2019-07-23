@@ -427,17 +427,17 @@ static int nand_block_bad(struct mtd_info *mtd, loff_t ofs, int getchip)
 	struct nand_chip *this = mtd->priv;
 	u16 bad;
 
+	page = (int)(ofs >> this->page_shift);
+	chipnr = (int)(ofs >> this->chip_shift);
+	
 	if (getchip) {
-		page = (int)(ofs >> this->page_shift);
-		chipnr = (int)(ofs >> this->chip_shift);
-
+		
 		/* Grab the lock and see if the device is available */
 		nand_get_device (this, mtd, FL_READING);
 
 		/* Select the NAND device */
 		this->select_chip(mtd, chipnr);
-	} else
-		page = (int) ofs;
+	}
 
 	if (this->options & NAND_BUSWIDTH_16) {
 		this->cmdfunc (mtd, NAND_CMD_READOOB, this->badblockpos & 0xFE, page & this->pagemask);
@@ -450,6 +450,13 @@ static int nand_block_bad(struct mtd_info *mtd, loff_t ofs, int getchip)
 		this->cmdfunc (mtd, NAND_CMD_READOOB, this->badblockpos, page & this->pagemask);
 		if (this->read_byte(mtd) != 0xff)
 			res = 1;
+
+		// Apply delay or wait for ready/busy pin
+        // add by huzghost@126.com, if not, the erase will be failed
+		if (!this->dev_ready)
+			udelay (this->chip_delay);
+		else
+			while (!this->dev_ready(mtd));
 	}
 
 	if (getchip) {
@@ -517,11 +524,12 @@ static int nand_block_checkbad (struct mtd_info *mtd, loff_t ofs, int getchip, i
 {
 	struct nand_chip *this = mtd->priv;
 
-	if (!this->bbt)
+//	if (!this->bbt)
 		return this->block_bad(mtd, ofs, getchip);
 
 	/* Return info from the table */
-	return nand_isbad_bbt (mtd, ofs, allowbbt);
+//	return nand_isbad_bbt (mtd, ofs, allowbbt);
+
 }
 
 /**
@@ -573,13 +581,17 @@ static void nand_command (struct mtd_info *mtd, unsigned command, int column, in
 			if (this->options & NAND_BUSWIDTH_16)
 				column >>= 1;
 			this->write_byte(mtd, column);
+			udelay(15);
 		}
 		if (page_addr != -1) {
 			this->write_byte(mtd, (unsigned char) (page_addr & 0xff));
+			udelay(15);
 			this->write_byte(mtd, (unsigned char) ((page_addr >> 8) & 0xff));
+			udelay(15);
 			/* One more address cycle for devices > 32MiB */
 			if (this->chipsize > (32 << 20))
 				this->write_byte(mtd, (unsigned char) ((page_addr >> 16) & 0x0f));
+   			    udelay(15);
 		}
 		/* Latch in address */
 		this->hwcontrol(mtd, NAND_CTL_CLRALE);
@@ -662,9 +674,11 @@ static void nand_command_lp (struct mtd_info *mtd, unsigned command, int column,
 
 		/* Serially input address */
 		if (column != -1) {
+#if 0
 			/* Adjust columns for 16 bit buswidth */
 			if (this->options & NAND_BUSWIDTH_16)
 				column >>= 1;
+#endif
 			this->write_byte(mtd, column & 0xff);
 			this->write_byte(mtd, column >> 8);
 		}
@@ -943,9 +957,22 @@ static int nand_write_page (struct mtd_info *mtd, struct nand_chip *this, int pa
 	/* Write out OOB data */
 	if (this->options & NAND_HWECC_SYNDROME)
 		this->write_buf(mtd, &oob_buf[oobsel->eccbytes], mtd->oobsize - oobsel->eccbytes);
-	else
+	else if (eccmode != NAND_ECC_NONE)
 		this->write_buf(mtd, oob_buf, mtd->oobsize);
-
+	else {
+		for (i = 0; i < mtd->oobsize; i++) {
+			if (oob_buf[i] != 0xff)
+				break;
+		}
+		if (i < mtd->oobsize) {
+			printf("Bad oob_buf: page = 0x%x, data = ", page);
+			for (i = 0; i < mtd->oobsize; i++) {
+				printf("%02x ", oob_buf[i]);
+			}
+			printf("\n");
+		}
+	}
+	
 	/* Send command to actually program the data */
 	this->cmdfunc (mtd, cached ? NAND_CMD_CACHEDPROG : NAND_CMD_PAGEPROG, -1, -1);
 
@@ -1560,8 +1587,10 @@ static u_char * nand_prepare_oobbuf (struct mtd_info *mtd, u_char *fsbuf, struct
 	}
 
 	/* If we have no autoplacement or no fs buffer use the internal one */
-	if (!autoplace || !fsbuf)
+	if (!autoplace || !fsbuf) {
+		this->oobdirty = 1;                     // by huzghost@126.com
 		return this->oob_buf;
+	}
 
 	/* Walk through the pages and place the data */
 	this->oobdirty = 1;
@@ -2308,14 +2337,14 @@ int nand_scan (struct mtd_info *mtd, int maxchips)
 		this->scan_bbt = nand_default_bbt;
 
 	/* Select the device */
-	this->select_chip(mtd, 0);
+	this->select_chip(mtd, 0);// 片选选中
 
 	/* Send the command for reading device ID */
 	this->cmdfunc (mtd, NAND_CMD_READID, 0x00, -1);
 
 	/* Read manufacturer and device IDs */
-	nand_maf_id = this->read_byte(mtd);
-	nand_dev_id = this->read_byte(mtd);
+	nand_maf_id = this->read_byte(mtd);		//0xEC
+	nand_dev_id = this->read_byte(mtd);		//0xDA
 
 	/* Print and store flash device information */
 	for (i = 0; nand_flash_ids[i].name != NULL; i++) {
@@ -2324,23 +2353,23 @@ int nand_scan (struct mtd_info *mtd, int maxchips)
 			continue;
 
 		if (!mtd->name) mtd->name = nand_flash_ids[i].name;
-		this->chipsize = nand_flash_ids[i].chipsize << 20;
+		this->chipsize = nand_flash_ids[i].chipsize << 20;			//获取nandflash的容量的大小
 
 		/* New devices have all the information in additional id bytes */
 		if (!nand_flash_ids[i].pagesize) {
 			int extid;
 			/* The 3rd id byte contains non relevant data ATM */
-			extid = this->read_byte(mtd);
+			extid = this->read_byte(mtd);							// 0x10
 			/* The 4th id byte is the important one */
-			extid = this->read_byte(mtd);
+			extid = this->read_byte(mtd);							// 0x15
 			/* Calc pagesize */
-			mtd->oobblock = 1024 << (extid & 0x3);
+			mtd->oobblock = 1024 << (extid & 0x3);					// 计算得到有 2048 个block
 			extid >>= 2;
 			/* Calc oobsize */
-			mtd->oobsize = (8 << (extid & 0x03)) * (mtd->oobblock / 512);
+			mtd->oobsize = (8 << (extid & 0x03)) * (mtd->oobblock / 512);	// 16 * 4 = 64, oob的大小为64byte
 			extid >>= 2;
 			/* Calc blocksize. Blocksize is multiples of 64KiB */
-			mtd->erasesize = (64 * 1024)  << (extid & 0x03);
+			mtd->erasesize = (64 * 1024)  << (extid & 0x03);		// 128 * 1024 = 128K, 可擦除的大小为128K
 			extid >>= 2;
 			/* Get buswidth information */
 			busw = (extid & 0x01) ? NAND_BUSWIDTH_16 : 0;
@@ -2369,16 +2398,17 @@ int nand_scan (struct mtd_info *mtd, int maxchips)
 		}
 
 		/* Calculate the address shift from the page size */
-		this->page_shift = ffs(mtd->oobblock) - 1;
+		this->page_shift = ffs(mtd->oobblock) - 1;				//page_shift = 12
 		this->bbt_erase_shift = this->phys_erase_shift = ffs(mtd->erasesize) - 1;
 		this->chip_shift = ffs(this->chipsize) - 1;
 
 		/* Set the bad block position */
+		// 坏块的位置:0
 		this->badblockpos = mtd->oobblock > 512 ?
 			NAND_LARGE_BADBLOCK_POS : NAND_SMALL_BADBLOCK_POS;
 
 		/* Get chip options, preserve non chip based options */
-		this->options &= ~NAND_CHIPOPTIONS_MSK;
+		this->options &= ~NAND_CHIPOPTIONS_MSK;			// this->options = 0
 		this->options |= nand_flash_ids[i].options & NAND_CHIPOPTIONS_MSK;
 		/* Set this as a default. Board drivers can override it, if neccecary */
 		this->options |= NAND_NO_AUTOINCR;
@@ -2440,7 +2470,7 @@ int nand_scan (struct mtd_info *mtd, int maxchips)
 
 	if (!this->data_buf) {
 		size_t len;
-		len = mtd->oobblock + mtd->oobsize;
+		len = mtd->oobblock + mtd->oobsize;					// 一个page的总长:(2048 + 64)
 		this->data_buf = kmalloc (len, GFP_KERNEL);
 		if (!this->data_buf) {
 			if (this->options & NAND_OOBBUF_ALLOC)
@@ -2453,7 +2483,7 @@ int nand_scan (struct mtd_info *mtd, int maxchips)
 
 	/* Store the number of chips and calc total size for mtd */
 	this->numchips = i;
-	mtd->size = i * this->chipsize;
+	mtd->size = i * this->chipsize;									// 256 * 1024 * 1024
 	/* Convert chipsize to number of pages per chip -1. */
 	this->pagemask = (this->chipsize >> this->page_shift) - 1;
 	/* Preset the internal oob buffer */
@@ -2464,7 +2494,7 @@ int nand_scan (struct mtd_info *mtd, int maxchips)
 	if (!this->autooob) {
 		/* Select the appropriate default oob placement scheme for
 		 * placement agnostic filesystems */
-		switch (mtd->oobsize) {
+		switch (mtd->oobsize) {										// oobsize = 64byte
 		case 8:
 			this->autooob = &nand_oob_8;
 			break;
@@ -2488,7 +2518,7 @@ int nand_scan (struct mtd_info *mtd, int maxchips)
 		if (this->autooob->eccbytes & 0x01)
 			mtd->oobavail--;
 	} else
-		mtd->oobavail = mtd->oobsize - (this->autooob->eccbytes + 1);
+		mtd->oobavail = mtd->oobsize - (this->autooob->eccbytes + 1);	// 算出 多余未使用的 oob数据
 
 	/*
 	 * check ECC mode, default to software
@@ -2497,6 +2527,8 @@ int nand_scan (struct mtd_info *mtd, int maxchips)
 	*/
 	this->eccsize = 256;	/* set default eccsize */
 	this->eccbytes = 3;
+
+	printf("this->eccmode = 0x%x \n", this->eccmode);
 
 	switch (this->eccmode) {
 	case NAND_ECC_HW12_2048:
@@ -2631,7 +2663,7 @@ int nand_scan (struct mtd_info *mtd, int maxchips)
 	mtd->owner = THIS_MODULE;
 #endif
 	/* Build bad block table */
-	return this->scan_bbt (mtd);
+	return 0;	// this->scan_bbt (mtd);				// nand_default_bbt  cancalled by huzghost@126.com
 }
 
 /**

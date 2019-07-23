@@ -43,20 +43,25 @@ struct mtd_erase_region_info {
 	u_int32_t numblocks;		/* Number of blocks of erasesize in this region */
 };
 
+/**
+  * K9F2G08U0C
+  * Page Program : (2K + 64)Byte
+  * Block Erase  : (128K + 4K)Byte
+  */
 struct mtd_info {
 	u_char type;
 	u_int32_t flags;
-	u_int32_t size;	 /* Total size of the MTD */
+	u_int32_t size;	 /* Total size of the MTD */								// nandflash的大小:256 * 1024 * 1024
 
 	/* "Major" erase size for the device. Na飗e users may take this
 	 * to be the only erase size available, or may use the more detailed
 	 * information below if they desire
 	 */
-	u_int32_t erasesize;
+	u_int32_t erasesize;														// nandfalsh擦除大小:128K
 
-	u_int32_t oobblock;  /* Size of OOB blocks (e.g. 512) */
-	u_int32_t oobsize;   /* Amount of OOB data per block (e.g. 16) */
-	u_int32_t oobavail;  /* Number of bytes in OOB area available for fs  */
+	u_int32_t oobblock;  /* Size of OOB blocks (e.g. 512) */					// nandfalsh的block: 2048
+	u_int32_t oobsize;   /* Amount of OOB data per block (e.g. 16) */			// nandflash的oobsize:64 = 64byte
+	u_int32_t oobavail;  /* Number of bytes in OOB area available for fs  */	// oob区域 剩余空间
 	u_int32_t ecctype;
 	u_int32_t eccsize;
 

@@ -90,10 +90,10 @@ struct region_info_user {
 #define MEMSETBADBLOCK		_IOW('M', 12, loff_t)
 
 struct nand_oobinfo {
-	uint32_t useecc;
-	uint32_t eccbytes;
-	uint32_t oobfree[8][2];
-	uint32_t eccpos[32];
+	uint32_t useecc;					// 使用 ecc的类型
+	uint32_t eccbytes;					// ecc的长度
+	uint32_t oobfree[8][2];				// oob区域 空闲数据
+	uint32_t eccpos[32];				//保存每256个字节生成3个ECC检验和，2048/256=8组， 8*3 = 24个校验码
 };
 
 #endif /* __MTD_ABI_H__ */
