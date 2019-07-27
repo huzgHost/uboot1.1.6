@@ -448,6 +448,7 @@ static int nand_block_bad(struct mtd_info *mtd, loff_t ofs, int getchip)
 			res = 1;
 	} else {
 		this->cmdfunc (mtd, NAND_CMD_READOOB, this->badblockpos, page & this->pagemask);
+		//判断block块的 badblockpos(0) 的位置的是否 0xff， 不为0xff表示为坏块
 		if (this->read_byte(mtd) != 0xff)
 			res = 1;
 
@@ -525,7 +526,7 @@ static int nand_block_checkbad (struct mtd_info *mtd, loff_t ofs, int getchip, i
 	struct nand_chip *this = mtd->priv;
 
 //	if (!this->bbt)
-		return this->block_bad(mtd, ofs, getchip);
+		return this->block_bad(mtd, ofs, getchip);				// nand_block_bad
 
 	/* Return info from the table */
 //	return nand_isbad_bbt (mtd, ofs, allowbbt);
@@ -922,13 +923,13 @@ static int nand_write_page (struct mtd_info *mtd, struct nand_chip *this, int pa
 	/* No ecc, write all */
 	case NAND_ECC_NONE:
 		//printk (KERN_WARNING "Writing data without ECC to NAND-FLASH is not recommended\n");
-		this->write_buf(mtd, this->data_poi, mtd->oobblock);
+		this->write_buf(mtd, this->data_poi, mtd->oobblock);					//使用yaffs，计算ecc，直接写入
 		break;
 
 	/* Software ecc 3/256, write all */
 	case NAND_ECC_SOFT:
 		for (; eccsteps; eccsteps--) {
-			this->calculate_ecc(mtd, &this->data_poi[datidx], ecc_code);
+			this->calculate_ecc(mtd, &this->data_poi[datidx], ecc_code);		//使用nand_ecc_precalc_table进行运算
 			for (i = 0; i < 3; i++, eccidx++)
 				oob_buf[oob_config[eccidx]] = ecc_code[i];
 			datidx += this->eccsize;
@@ -1579,6 +1580,7 @@ static u_char * nand_prepare_oobbuf (struct mtd_info *mtd, u_char *fsbuf, struct
 	if (fsbuf && !autoplace)
 		return fsbuf;
 
+	//printf("nand_prepare_oobbuf::this->oobdirty = %d, autoplace = %d \n", this->oobdirty, autoplace);
 	/* Check, if the buffer must be filled with ff again */
 	if (this->oobdirty) {
 		memset (this->oob_buf, 0xff,
@@ -1589,8 +1591,10 @@ static u_char * nand_prepare_oobbuf (struct mtd_info *mtd, u_char *fsbuf, struct
 	/* If we have no autoplacement or no fs buffer use the internal one */
 	if (!autoplace || !fsbuf) {
 		this->oobdirty = 1;                     // by huzghost@126.com
-		return this->oob_buf;
+		return this->oob_buf;					// oob_buf 默认值全为 0xff
 	}
+
+	printf("nand_prepare_oobbuf::process oobavail data, numpages = %d \n", numpages);
 
 	/* Walk through the pages and place the data */
 	this->oobdirty = 1;
@@ -1613,10 +1617,10 @@ static u_char * nand_prepare_oobbuf (struct mtd_info *mtd, u_char *fsbuf, struct
 /**
  * nand_write - [MTD Interface] compability function for nand_write_ecc
  * @mtd:	MTD device structure
- * @to:		offset to write to
- * @len:	number of bytes to write
+ * @to:		offset to write to			待写入的地址
+ * @len:	number of bytes to write	待写入的长度
  * @retlen:	pointer to variable to store the number of written bytes
- * @buf:	the data to write
+ * @buf:	the data to write			准备写入的buff
  *
  * This function simply calls nand_write_ecc with oob buffer and oobsel = NULL
  *
@@ -1629,10 +1633,10 @@ static int nand_write (struct mtd_info *mtd, loff_t to, size_t len, size_t * ret
 /**
  * nand_write_ecc - [MTD Interface] NAND write with ECC
  * @mtd:	MTD device structure
- * @to:		offset to write to
- * @len:	number of bytes to write
+ * @to:		offset to write to							待写入的地址
+ * @len:	number of bytes to write					待写入的长度
  * @retlen:	pointer to variable to store the number of written bytes
- * @buf:	the data to write
+ * @buf:	the data to write							准备写入的buff
  * @eccbuf:	filesystem supplied oob data buffer
  * @oobsel:	oob selection structure
  *
@@ -1645,7 +1649,7 @@ static int nand_write_ecc (struct mtd_info *mtd, loff_t to, size_t len,
 	int autoplace = 0, numpages, totalpages;
 	struct nand_chip *this = mtd->priv;
 	u_char *oobbuf, *bufstart;
-	int	ppblock = (1 << (this->phys_erase_shift - this->page_shift));
+	int	ppblock = (1 << (this->phys_erase_shift - this->page_shift));	//64
 
 	DEBUG (MTD_DEBUG_LEVEL3, "nand_write_ecc: to = 0x%08x, len = %i\n", (unsigned int) to, (int) len);
 
@@ -1653,12 +1657,14 @@ static int nand_write_ecc (struct mtd_info *mtd, loff_t to, size_t len,
 	*retlen = 0;
 
 	/* Do not allow write past end of device */
+	//当前偏移地址加上需要写入的总长度超过 nandflash总大小
 	if ((to + len) > mtd->size) {
 		DEBUG (MTD_DEBUG_LEVEL0, "nand_write_ecc: Attempt to write past end of page\n");
 		return -EINVAL;
 	}
 
 	/* reject writes, which are not page aligned */
+	// 确保写入的地址与2k对齐
 	if (NOTALIGNED (to) || NOTALIGNED(len)) {
 		printk (KERN_NOTICE "nand_write_ecc: Attempt to write not page aligned data\n");
 		return -EINVAL;
@@ -1678,9 +1684,10 @@ static int nand_write_ecc (struct mtd_info *mtd, loff_t to, size_t len,
 
 	/* if oobsel is NULL, use chip defaults */
 	if (oobsel == NULL)
-		oobsel = &mtd->oobinfo;
+		oobsel = &mtd->oobinfo;						// nand_oob_64
 
 	/* Autoplace of oob data ? Use the default placement scheme */
+	// jffs2写入，使用nand_oob_64; yaffs2写入，使用none_oobinfo
 	if (oobsel->useecc == MTD_NANDECC_AUTOPLACE) {
 		oobsel = this->autooob;
 		autoplace = 1;
@@ -1817,14 +1824,14 @@ static int nand_write_oob (struct mtd_info *mtd, loff_t to, size_t len, size_t *
 	nand_get_device (this, mtd, FL_WRITING);
 
 	/* Select the NAND device */
-	this->select_chip(mtd, chipnr);
+	this->select_chip(mtd, chipnr);					// 选中
 
 	/* Reset the chip. Some chips (like the Toshiba TC5832DC found
 	   in one of my DiskOnChip 2000 test units) will clear the whole
 	   data page too if we don't do this. I have no clue why, but
 	   I seem to have 'fixed' it in the doc2000 driver in
 	   August 1999.  dwmw2. */
-	this->cmdfunc(mtd, NAND_CMD_RESET, -1, -1);
+	this->cmdfunc(mtd, NAND_CMD_RESET, -1, -1);		// 复位
 
 	/* Check, if it is write protected */
 	if (nand_check_wp(mtd))
@@ -2399,25 +2406,26 @@ int nand_scan (struct mtd_info *mtd, int maxchips)
 
 		/* Calculate the address shift from the page size */
 		this->page_shift = ffs(mtd->oobblock) - 1;				//page_shift = 12
-		this->bbt_erase_shift = this->phys_erase_shift = ffs(mtd->erasesize) - 1;
-		this->chip_shift = ffs(this->chipsize) - 1;
+		this->bbt_erase_shift = this->phys_erase_shift = ffs(mtd->erasesize) - 1;		//18
+		this->chip_shift = ffs(this->chipsize) - 1;				//chip_shift = 29
 
 		/* Set the bad block position */
-		// 坏块的位置:0
+		// 得到用来记录 block 是否为坏块的位置
 		this->badblockpos = mtd->oobblock > 512 ?
 			NAND_LARGE_BADBLOCK_POS : NAND_SMALL_BADBLOCK_POS;
 
 		/* Get chip options, preserve non chip based options */
 		this->options &= ~NAND_CHIPOPTIONS_MSK;			// this->options = 0
-		this->options |= nand_flash_ids[i].options & NAND_CHIPOPTIONS_MSK;
+		this->options |= nand_flash_ids[i].options & NAND_CHIPOPTIONS_MSK;	// 0 & 0x0000fffe = 0
 		/* Set this as a default. Board drivers can override it, if neccecary */
-		this->options |= NAND_NO_AUTOINCR;
+		this->options |= NAND_NO_AUTOINCR;				// this->options = 1
 		/* Check if this is a not a samsung device. Do not clear the options
 		 * for chips which are not having an extended id.
 		 */
 		if (nand_maf_id != NAND_MFR_SAMSUNG && !nand_flash_ids[i].pagesize)
 			this->options &= ~NAND_SAMSUNG_LP_OPTIONS;
 
+		printf("this->options = 0x%x \n", this->options);
 		/* Check for AND chips with 4 page planes */
 		if (this->options & NAND_4PAGE_ARRAY)
 			this->erase_cmd = multi_erase_cmd;
@@ -2459,7 +2467,8 @@ int nand_scan (struct mtd_info *mtd, int maxchips)
 	/* Allocate buffers, if neccecary */
 	if (!this->oob_buf) {
 		size_t len;
-		len = mtd->oobsize << (this->phys_erase_shift - this->page_shift);
+		len = mtd->oobsize << (this->phys_erase_shift - this->page_shift);//对应一个block所有oob区域
+		printf("nand_base: oob_buf-len = %d \n", len);
 		this->oob_buf = kmalloc (len, GFP_KERNEL);
 		if (!this->oob_buf) {
 			printk (KERN_ERR "nand_scan(): Cannot allocate oob_buf\n");
@@ -2471,6 +2480,7 @@ int nand_scan (struct mtd_info *mtd, int maxchips)
 	if (!this->data_buf) {
 		size_t len;
 		len = mtd->oobblock + mtd->oobsize;					// 一个page的总长:(2048 + 64)
+		printf("nand_base: data_buf-len = %d \n", len);
 		this->data_buf = kmalloc (len, GFP_KERNEL);
 		if (!this->data_buf) {
 			if (this->options & NAND_OOBBUF_ALLOC)
@@ -2484,9 +2494,11 @@ int nand_scan (struct mtd_info *mtd, int maxchips)
 	/* Store the number of chips and calc total size for mtd */
 	this->numchips = i;
 	mtd->size = i * this->chipsize;									// 256 * 1024 * 1024
+	printf("mtd->size = %d \n", mtd->size);
 	/* Convert chipsize to number of pages per chip -1. */
 	this->pagemask = (this->chipsize >> this->page_shift) - 1;
 	/* Preset the internal oob buffer */
+	//将 oob_buff全部写成0xff, 也就是 1个block(64大小 * 64页)下所有的oob区写入0xff
 	memset(this->oob_buf, 0xff, mtd->oobsize << (this->phys_erase_shift - this->page_shift));
 
 	/* If no default placement scheme is given, select an
@@ -2502,7 +2514,7 @@ int nand_scan (struct mtd_info *mtd, int maxchips)
 			this->autooob = &nand_oob_16;
 			break;
 		case 64:
-			this->autooob = &nand_oob_64;
+			this->autooob = &nand_oob_64;							// 使用该项
 			break;
 		default:
 			printk (KERN_WARNING "No oob scheme defined for oobsize %d\n",
@@ -2525,6 +2537,7 @@ int nand_scan (struct mtd_info *mtd, int maxchips)
 	 * if 3byte/512byte hardware ECC is selected and we have 256 byte pagesize
 	 * fallback to software ECC
 	*/
+	//默认每256个字节，生成3个字节的ecc码
 	this->eccsize = 256;	/* set default eccsize */
 	this->eccbytes = 3;
 
@@ -2563,8 +2576,8 @@ int nand_scan (struct mtd_info *mtd, int maxchips)
 		break;
 
 	case NAND_ECC_SOFT:
-		this->calculate_ecc = nand_calculate_ecc;
-		this->correct_data = nand_correct_data;
+		this->calculate_ecc = nand_calculate_ecc;			// 使用软ecc生成校验码
+		this->correct_data = nand_correct_data;				// 对 nandfalsh进行校验运算
 		break;
 
 	default:
@@ -2593,6 +2606,7 @@ int nand_scan (struct mtd_info *mtd, int maxchips)
 	mtd->eccsize = this->eccsize;
 
 	/* Set the number of read / write steps for one page to ensure ECC generation */
+	// 计算每一页需要进行ecc的次数
 	switch (this->eccmode) {
 	case NAND_ECC_HW12_2048:
 		this->eccsteps = mtd->oobblock / 2048;
@@ -2604,7 +2618,7 @@ int nand_scan (struct mtd_info *mtd, int maxchips)
 		break;
 	case NAND_ECC_HW3_256:
 	case NAND_ECC_SOFT:
-		this->eccsteps = mtd->oobblock / 256;
+		this->eccsteps = mtd->oobblock / 256;			// 计算出 eccstep = 2048/256 = 8(每一页写分8次写入)
 		break;
 
 	case NAND_ECC_NONE:
@@ -2657,7 +2671,7 @@ int nand_scan (struct mtd_info *mtd, int maxchips)
 	mtd->block_markbad = nand_block_markbad;
 
 	/* and make the autooob the default one */
-	memcpy(&mtd->oobinfo, this->autooob, sizeof(mtd->oobinfo));
+	memcpy(&mtd->oobinfo, this->autooob, sizeof(mtd->oobinfo));		// 拷贝 nand_chip 的oob 到 mtd的oobinfo
 /* XXX U-BOOT XXX */
 #if 0
 	mtd->owner = THIS_MODULE;

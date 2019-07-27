@@ -294,7 +294,7 @@ int nand_write_opts(nand_info_t *meminfo, const nand_write_options_t *opts)
 	int percent_complete = -1;
 	struct nand_oobinfo old_oobinfo;
 	ulong mtdoffset = opts->offset;						// 偏移地址: 0x260000
-	ulong erasesize_blockalign;
+	ulong erasesize_blockalign;							// 擦除对齐大小:128K (对于一个 block:64个page页)
 	u_char *buffer = opts->buffer;						// 内存地址: 0x30000000
 	size_t written;
 	int result;
@@ -327,9 +327,10 @@ int nand_write_opts(nand_info_t *meminfo, const nand_write_options_t *opts)
 	memcpy(&old_oobinfo, &meminfo->oobinfo, sizeof(old_oobinfo));
 
 	/* write without ecc? */
+	//jffs2文件，需要使用ecc; yaffs2文件不需要ecc检验
 	if (opts->noecc) {
 		memcpy(&meminfo->oobinfo, &none_oobinfo,
-		       sizeof(meminfo->oobinfo));
+		       sizeof(meminfo->oobinfo));					//针对 yaffs2，不使用oobinfo
 		oobinfochanged = 1;
 	}
 
@@ -363,16 +364,18 @@ int nand_write_opts(nand_info_t *meminfo, const nand_write_options_t *opts)
 	/* get image length */
 	imglen = opts->length;										// 需要写入的数据长度
 	pagelen = meminfo->oobblock
-		+ ((opts->writeoob != 0) ? meminfo->oobsize : 0);		// 写入的page长度:2048 + 64(oob) = 2112
+		+ ((opts->writeoob != 0) ? meminfo->oobsize : 0);		// 写入jaffs2的长度:2048; yaffs的page长度:2048 + 64(oob) = 2112
 
 	/* check, if file is pagealigned */
 	// 判断写的长度是否可以整除 pagelen, 对于 yaffs文件，是连同oob数据一同定入的
+	printf(" imglen = %d, pagelen = %d, (imglen % pagelen) = %d \n", imglen, pagelen, (imglen % pagelen));
 	if ((!opts->pad) && ((imglen % pagelen) != 0)) {
 		printf("Input block length is not page aligned\n");
 		goto restoreoob;
 	}
 
 	/* check, if length fits into device */
+	// 写入的数据长度 不能超过 剩余空间的大小
 	if (((imglen / pagelen) * meminfo->oobblock)
 	     > (meminfo->size - opts->offset)) {
 		printf("Image %d bytes, NAND page %d bytes, "
@@ -398,6 +401,8 @@ int nand_write_opts(nand_info_t *meminfo, const nand_write_options_t *opts)
 		 * the block(s) after the skipped block(s) is also bad
 		 * (number of blocks depending on the blockalign
 		 */
+		//一个block 0x20000大小(128k), 保证 mtdoffset的偏移为 0x20000
+		//正常block，循环退出，如果为坏块，mtdoffset会跳转到一个block,再次检测
 		while (blockstart != (mtdoffset & (~erasesize_blockalign+1))) {
 			blockstart = mtdoffset & (~erasesize_blockalign+1);
 			offs = blockstart;
@@ -407,7 +412,10 @@ int nand_write_opts(nand_info_t *meminfo, const nand_write_options_t *opts)
 			 * bad blocks */
 			if (!opts->nocheckbadblk) {
 				do {
-					int ret = meminfo->block_isbad(meminfo, offs);//判断是不是坏块
+					/**
+					  * 对于大容量的nandflash，每个block的第一个page的第0个位置，存放的数据用来表示是不是坏块
+					  */
+					int ret = meminfo->block_isbad(meminfo, offs);//判断是不是坏块(每个block块的第一个字节等于0xff,认为是正常的block)	nand_block_isbad
 
 					if (ret < 0) {
 						printf("Bad block check failed\n");
@@ -428,11 +436,14 @@ int nand_write_opts(nand_info_t *meminfo, const nand_write_options_t *opts)
 						mtdoffset = blockstart
 							+ erasesize_blockalign;//如果是坏块，写入的地址指向下一块block
 					}
+					//偏移地址 按 block地址偏移对齐
 					offs +=	 erasesize_blockalign
 						/ opts->blockalign;
 				} while (offs < blockstart + erasesize_blockalign);
 			}
 		}
+
+		//printf("nand_write_opts::mtdoffset = 0x%x \n", mtdoffset);
 
 		/* skip the first good block when wirte yaffs image, by huzghost@126.com */
         if (skipfirstblk) {
@@ -442,22 +453,25 @@ int nand_write_opts(nand_info_t *meminfo, const nand_write_options_t *opts)
         }
 
 		readlen = meminfo->oobblock;
+		// 处理剩余 不足 2048的数据,使用0xff填充
 		if (opts->pad && (imglen < readlen)) {
 			readlen = imglen;
 			memset(data_buf + readlen, 0xff,
-			       meminfo->oobblock - readlen);
+			       meminfo->oobblock - readlen);	//不足2048的数据，用0xff补充
 		}
 
 		/* read page data from input memory buffer */
-		memcpy(data_buf, buffer, readlen);
-		buffer += readlen;
+		memcpy(data_buf, buffer, readlen);			// 从 buffer(0x30000000)读 2048的数据到data_buf
+		buffer += readlen;							// buffer 偏移 2048(pagesize)的长度
 
+		// 对于 yaffs文件，是会写oob区域
 		if (opts->writeoob) {
 			/* read OOB data from input memory block, exit
 			 * on failure */
-			memcpy(oob_buf, buffer, meminfo->oobsize);
-			buffer += meminfo->oobsize;
+			memcpy(oob_buf, buffer, meminfo->oobsize);	// 从内存地址 拷贝 oob数据
+			buffer += meminfo->oobsize;				// buffeer 偏移oob的长度
 
+			printf("oob addr = 0x%x \r", mtdoffset);
 			/* write OOB data first, as ecc will be placed
 			 * in there*/
 			result = meminfo->write_oob(meminfo,
@@ -476,6 +490,7 @@ int nand_write_opts(nand_info_t *meminfo, const nand_write_options_t *opts)
 		}
 
 		/* write out the page data */
+		// mtd->write = nand_write;
 		result = meminfo->write(meminfo,
 					mtdoffset,
 					meminfo->oobblock,

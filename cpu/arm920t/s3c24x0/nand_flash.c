@@ -166,7 +166,7 @@ void board_nand_init(struct nand_chip *chip)
     chip->select_chip  = s3c2440_nand_select_chip;
     chip->options      = 0;
 
-    chip->eccmode       = NAND_ECC_SOFT;
+    chip->eccmode       = NAND_ECC_SOFT;		// 使用 软ecc校验
 }
 
 #endif

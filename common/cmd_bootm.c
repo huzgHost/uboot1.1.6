@@ -317,6 +317,7 @@ int do_bootm (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	flush_data_cache();
 	dcache_disable();
 #endif
+	printf("load_addr = 0x%x, addr = 0x%x, data = 0x%x \n", ntohl(hdr->ih_load), addr, data);
 	//从uImage"头部信息" 获取kernel压缩类型
 	switch (hdr->ih_comp) {
 	case IH_COMP_NONE:

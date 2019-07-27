@@ -63,7 +63,7 @@ struct mtd_info {
 	u_int32_t oobsize;   /* Amount of OOB data per block (e.g. 16) */			// nandflashµÄoobsize:64 = 64byte
 	u_int32_t oobavail;  /* Number of bytes in OOB area available for fs  */	// oobÇøÓò Ê£Óà¿Õ¼ä
 	u_int32_t ecctype;
-	u_int32_t eccsize;
+	u_int32_t eccsize;															// 512 byte
 
 
 	/* Kernel-only stuff starts here. */
@@ -71,7 +71,7 @@ struct mtd_info {
 	int index;
 
 	/* oobinfo is a nand_oobinfo structure, which can be set by iotcl (MEMSETOOBINFO) */
-	struct nand_oobinfo oobinfo;
+	struct nand_oobinfo oobinfo;												// nand_oob_64
 
 	/* Data for variable erase regions. If numeraseregions is zero,
 	 * it means that the whole device has erasesize as given above.

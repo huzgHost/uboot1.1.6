@@ -374,7 +374,7 @@ int do_nand(cmd_tbl_t * cmdtp, int flag, int argc, char *argv[])
 				opts.quiet      = quiet;
 				ret = nand_read_opts(nand, &opts);
 			} else {
-				/* write */
+				/* write yaffs文件本身是包括oob区，所以直接写入page和oob数据 */
 				nand_write_options_t opts;
 				memset(&opts, 0, sizeof(opts));
 				opts.buffer	= (u_char*) addr;			//yaffs文件系统映像存放的地址

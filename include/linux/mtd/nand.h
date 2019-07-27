@@ -177,7 +177,7 @@ extern int nand_read_raw (struct mtd_info *mtd, uint8_t *buf, loff_t from, size_
 #define NAND_HAS_COPYBACK(chip) ((chip->options & NAND_COPYBACK))
 
 /* Mask to zero out the chip options, which come from the id table */
-#define NAND_CHIPOPTIONS_MSK	(0x0000ffff & ~NAND_NO_AUTOINCR)
+#define NAND_CHIPOPTIONS_MSK	(0x0000ffff & ~NAND_NO_AUTOINCR)			//0x0000fffe
 
 /* Non chip related options */
 /* Use a flash based bad block table. This option is passed to the
@@ -307,27 +307,27 @@ struct nand_chip {
 	void		(*erase_cmd)(struct mtd_info *mtd, int page);
 	int		(*scan_bbt)(struct mtd_info *mtd);
 	int		eccmode;
-	int		eccsize;							//
-	int		eccbytes;
-	int		eccsteps;
+	int		eccsize;							//每一次ecc所校验的字节个数 256
+	int		eccbytes;							//每一次ecc所生成的字节个数 3
+	int		eccsteps;							//每一页需要进行ecc的次数 2048/256 = 8
 	int		chip_delay;
 #if 0
 	spinlock_t	chip_lock;
 	wait_queue_head_t wq;
 	nand_state_t	state;
 #endif
-	int		page_shift;
-	int		phys_erase_shift;
-	int		bbt_erase_shift;
-	int		chip_shift;
-	u_char		*data_buf;
-	u_char		*oob_buf;
+	int		page_shift;							// 按页写入左移数:12
+	int		phys_erase_shift;					// 块大小擦除 左移数:18
+	int		bbt_erase_shift;					// 分区表擦除 左移数:18
+	int		chip_shift;							// nandflash:29
+	u_char		*data_buf;						// 一个page下的 data+oob = 2048 + 64 = 2112
+	u_char		*oob_buf;						// 一个block下的所有oob大小: 64 * 64 = 4096
 	int		oobdirty;
-	u_char		*data_poi;
+	u_char		*data_poi;						// data区的数据，2048大小
 	unsigned int	options;
 	int		badblockpos;					//坏块位置:0
 	int		numchips;
-	unsigned long	chipsize;
+	unsigned long	chipsize;				// 256 << 20 = 256M
 	int		pagemask;
 	int		pagebuf;
 	struct nand_oobinfo	*autooob;			//使用 64 类型的 oob数据
@@ -462,7 +462,7 @@ extern int nand_erase_nand (struct mtd_info *mtd, struct erase_info *instr, int 
 /*
 * Constants for oob configuration
 */
-#define NAND_SMALL_BADBLOCK_POS		5
-#define NAND_LARGE_BADBLOCK_POS		0
+#define NAND_SMALL_BADBLOCK_POS		5						// 对于 小容量的nandflash,通常第6个byte用来判断是否为坏块
+#define NAND_LARGE_BADBLOCK_POS		0						// 对于 大容量的nandflash,通常第1个byte用来判断是否为坏块
 
 #endif /* __LINUX_MTD_NAND_H */

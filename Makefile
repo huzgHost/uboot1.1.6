@@ -218,7 +218,7 @@ LIBS += drivers/libdrivers.a
 LIBS += drivers/nand/libnand.a
 LIBS += drivers/nand_legacy/libnand_legacy.a
 LIBS += drivers/sk98lin/libsk98lin.a
-LIBS += post/libpost.a post/cpu/libcpu.a
+# LIBS += post/libpost.a post/cpu/libcpu.a
 LIBS += common/libcommon.a
 LIBS += $(BOARDLIBS)
 
@@ -226,7 +226,8 @@ LIBS := $(addprefix $(obj),$(LIBS))
 .PHONY : $(LIBS)
 
 # Add GCC lib
-PLATFORM_LIBS += -L $(shell dirname `$(CC) $(CFLAGS) -print-libgcc-file-name`) -lgcc
+#PLATFORM_LIBS += -L $(shell dirname `$(CC) $(CFLAGS) -print-libgcc-file-name`) -lgcc
+PLATFORM_LIBS += 
 
 # The "tools" are needed early, so put this first
 # Don't include stuff already done in $(LIBS)
@@ -278,6 +279,7 @@ $(obj)u-boot:		depend version $(SUBDIRS) $(OBJS) $(LIBS) $(LDSCRIPT)
 			-Map u-boot.map -o u-boot
 
 $(OBJS):
+	echo $(OBJS)	
 		$(MAKE) -C cpu/$(CPU) $(if $(REMOTE_BUILD),$@,$(notdir $@))
 
 $(LIBS):
